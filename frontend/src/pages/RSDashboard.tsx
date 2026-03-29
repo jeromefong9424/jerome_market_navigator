@@ -1,10 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Plus, TrendingUp, TrendingDown } from 'lucide-react'
-import { fetchRS } from '../api'
+import { RefreshCw, Plus, Trash2, TrendingUp, TrendingDown } from 'lucide-react'
+import { fetchRS, fetchGroups, createGroup, deleteGroup, addTickerToGroup, removeTickerFromGroup } from '../api'
 import { useStore } from '../store'
-
-const DEFAULT_TICKERS = ['XLI', 'XLK', 'XLU', 'XLRE', 'XLY', 'XLV', 'XLB', 'SMH', 'XLE', 'XLF', 'XLP']
 
 const TICKER_NAMES: Record<string, string> = {
   XLI:  'Industrials', XLK:  'Technology',    XLU:  'Utilities',
@@ -224,13 +222,22 @@ export default function RSDashboard() {
   const setSelectedTicker = useStore(s => s.setSelectedTicker)
   const watchlist      = useStore(s => s.watchlist)
 
-  const [tickers, setTickers]   = useState<string[]>(DEFAULT_TICKERS)
+  // Groups state
+  const [groups,       setGroups]       = useState<Record<string, string[]>>({})
+  const [activeGroup,  setActiveGroup]  = useState<string>('')
+  const [newGroupName, setNewGroupName] = useState('')
+  const [showNewGroup, setShowNewGroup] = useState(false)
+
   const [data,    setData]      = useState<RSRow[]>([])
   const [loading, setLoading]   = useState(false)
   const [newTicker, setNewTicker] = useState('')
   const [sortCol,  setSortCol]  = useState<SortCol>('rank')
   const [sortAsc,  setSortAsc]  = useState(true)
   const [error,    setError]    = useState<string | null>(null)
+
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const tickers = groups[activeGroup] ?? []
 
   const load = useCallback(async (list: string[]) => {
     if (list.length === 0) return
@@ -246,23 +253,58 @@ export default function RSDashboard() {
     }
   }, [])
 
+  // Load groups from backend on mount
   useEffect(() => {
-    load(tickers)
-    const t = setInterval(() => load(tickers), 60_000)
-    return () => clearInterval(t)
-  }, [tickers, load])
+    fetchGroups().then(g => {
+      setGroups(g)
+      const first = Object.keys(g)[0]
+      if (first) setActiveGroup(first)
+    }).catch(() => setError('Failed to load groups'))
+  }, [])
 
-  const handleAdd = () => {
+  // Reload RS data when active group changes
+  useEffect(() => {
+    if (!activeGroup) return
+    const list = groups[activeGroup] ?? []
+    setData([])
+    load(list)
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => load(list), 60_000)
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [activeGroup, groups, load])
+
+  const handleAdd = async () => {
     const t = newTicker.trim().toUpperCase()
-    if (!t || tickers.includes(t)) return
-    const next = [...tickers, t]
-    setTickers(next)
+    if (!t || tickers.includes(t) || !activeGroup) return
     setNewTicker('')
+    const updated = await addTickerToGroup(activeGroup, t)
+    setGroups(updated)
   }
 
-  const handleRemove = (ticker: string) => {
-    setTickers(prev => prev.filter(t => t !== ticker))
+  const handleRemove = async (ticker: string) => {
+    if (!activeGroup) return
     setData(prev => prev.filter(r => r.ticker !== ticker))
+    const updated = await removeTickerFromGroup(activeGroup, ticker)
+    setGroups(updated)
+  }
+
+  const handleCreateGroup = async () => {
+    const name = newGroupName.trim()
+    if (!name) return
+    const updated = await createGroup(name)
+    setGroups(updated)
+    setActiveGroup(name)
+    setNewGroupName('')
+    setShowNewGroup(false)
+  }
+
+  const handleDeleteGroup = async (name: string) => {
+    if (!confirm(`Delete group "${name}"?`)) return
+    const updated = await deleteGroup(name)
+    setGroups(updated)
+    const remaining = Object.keys(updated)
+    setActiveGroup(remaining[0] ?? '')
+    setData([])
   }
 
   const handleSelect = (ticker: string) => {
@@ -305,24 +347,73 @@ export default function RSDashboard() {
       {/* Left — RS Leaderboard (60%) */}
       <div className="flex flex-col overflow-hidden border-r border-[#1A1A1A]" style={{ width: '60%' }}>
 
-        {/* Toolbar */}
-        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-[#1A1A1A]">
-          <span className="text-xs font-semibold text-white">RS Leaderboard</span>
-          <span className="text-[10px] text-[#444]">25-day · vs SPY</span>
+        {/* Group tabs */}
+        <div className="flex-shrink-0 flex items-center gap-1 px-3 pt-2 border-b border-[#1A1A1A] overflow-x-auto">
+          {Object.keys(groups).map(name => (
+            <div key={name} className="flex items-center gap-0.5 flex-shrink-0">
+              <button
+                onClick={() => setActiveGroup(name)}
+                className={`px-3 py-1.5 text-[11px] rounded-t transition-colors ${
+                  activeGroup === name
+                    ? 'bg-[#1A1A2E] text-[#3B82F6] border-b-2 border-[#3B82F6]'
+                    : 'text-[#555] hover:text-[#888]'
+                }`}
+              >
+                {name}
+                <span className="ml-1 text-[9px] text-[#333]">{(groups[name] ?? []).length}</span>
+              </button>
+              {activeGroup === name && (
+                <button
+                  onClick={() => handleDeleteGroup(name)}
+                  className="text-[#333] hover:text-[#F87171] transition-colors px-0.5"
+                  title="Delete group"
+                >
+                  <Trash2 size={10} />
+                </button>
+              )}
+            </div>
+          ))}
+          {/* New group */}
+          {showNewGroup ? (
+            <div className="flex items-center gap-1 flex-shrink-0 px-1">
+              <input
+                autoFocus
+                value={newGroupName}
+                onChange={e => setNewGroupName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreateGroup(); if (e.key === 'Escape') setShowNewGroup(false) }}
+                placeholder="Group name…"
+                className="w-24 bg-[#111] text-white text-[10px] px-2 py-1 rounded border border-[#3B82F6] focus:outline-none placeholder-[#333]"
+              />
+              <button onClick={handleCreateGroup} className="text-[#3B82F6] hover:text-white transition-colors">
+                <Plus size={12} />
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setShowNewGroup(true)}
+              className="flex-shrink-0 px-2 py-1.5 text-[#333] hover:text-[#3B82F6] transition-colors"
+              title="New group">
+              <Plus size={12} />
+            </button>
+          )}
           <div className="flex-1" />
-          {error && <span className="text-[#F87171] text-[10px]">{error}</span>}
+          {error && <span className="text-[#F87171] text-[10px] flex-shrink-0 pr-2">{error}</span>}
           <button onClick={() => load(tickers)} disabled={loading}
-            className="text-[#444] hover:text-white transition-colors disabled:opacity-40">
+            className="flex-shrink-0 text-[#444] hover:text-white transition-colors disabled:opacity-40 pb-2 pr-1">
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
           </button>
-          {/* Add ticker */}
+        </div>
+
+        {/* Add ticker toolbar */}
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-[#111]">
+          <span className="text-[10px] text-[#444]">25-day · vs SPY</span>
+          <div className="flex-1" />
           <div className="flex items-center gap-1">
             <input
               value={newTicker}
               onChange={e => setNewTicker(e.target.value.toUpperCase())}
               onKeyDown={e => e.key === 'Enter' && handleAdd()}
-              placeholder="Add…"
-              className="w-16 bg-[#111] text-white text-[10px] px-2 py-1 rounded border border-[#1E1E1E] focus:outline-none focus:border-[#3B82F6] placeholder-[#333]"
+              placeholder="Add ticker…"
+              className="w-24 bg-[#111] text-white text-[10px] px-2 py-1 rounded border border-[#1E1E1E] focus:outline-none focus:border-[#3B82F6] placeholder-[#333]"
             />
             <button onClick={handleAdd}
               className="text-[#3B82F6] hover:text-white transition-colors">
