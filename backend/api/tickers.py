@@ -2,6 +2,7 @@ import json
 import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+import yfinance as yf
 
 router = APIRouter(prefix="/api/tickers", tags=["tickers"])
 
@@ -85,3 +86,37 @@ def remove_ticker(name: str, ticker: str):
     groups[name] = [t for t in groups[name] if t != ticker]
     _save(groups)
     return groups
+
+
+class ScanHoldingsRequest(BaseModel):
+    group: str
+    top_n: int = 5
+
+
+@router.post("/scan-holdings")
+def scan_holdings(body: ScanHoldingsRequest):
+    """For each ETF in the group, fetch top N holdings and save as a new group."""
+    groups = _load()
+    if body.group not in groups:
+        raise HTTPException(404, "Group not found")
+
+    etfs = groups[body.group]
+    created = []
+
+    for etf in etfs:
+        try:
+            holdings_df = yf.Ticker(etf).funds_data.top_holdings
+            symbols = holdings_df.index.tolist()[:body.top_n]
+            if not symbols:
+                continue
+            group_name = f"{etf} Holdings"
+            groups[group_name] = [s.upper() for s in symbols]
+            created.append(group_name)
+        except Exception:
+            continue
+
+    if not created:
+        raise HTTPException(400, "No holdings found — tickers may not be ETFs")
+
+    _save(groups)
+    return {"created": created, "groups": groups}

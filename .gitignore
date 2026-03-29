@@ -10,6 +10,10 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
+# Generated cache files — auto-regenerated at runtime
+backend/etf_holdings.json
+backend/ticker_names.json
+
 # Editor
 .DS_Store
 *.swp

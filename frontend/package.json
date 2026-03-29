@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-hover-card": "^1.1.15",
     "axios": "^1.13.6",
     "framer-motion": "^12.38.0",
+    "lightweight-charts": "^5.1.0",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

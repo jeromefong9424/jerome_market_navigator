@@ -1,8 +1,39 @@
 from fastapi import APIRouter
 import yfinance as yf
 import numpy as np
+import json
+import os
 
 router = APIRouter(prefix="/api/rs", tags=["rs"])
+
+NAMES_FILE = os.path.join(os.path.dirname(__file__), '..', 'ticker_names.json')
+
+
+def _load_names() -> dict:
+    if os.path.exists(NAMES_FILE):
+        with open(NAMES_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def _save_names(cache: dict):
+    with open(NAMES_FILE, 'w') as f:
+        json.dump(cache, f, indent=2)
+
+
+def _fetch_names(symbols: list[str]) -> dict:
+    cache = _load_names()
+    missing = [s for s in symbols if s not in cache]
+    if missing:
+        for sym in missing:
+            try:
+                info = yf.Ticker(sym).info
+                name = info.get('shortName') or info.get('longName') or sym
+                cache[sym] = name
+            except Exception:
+                cache[sym] = sym
+        _save_names(cache)
+    return cache
 
 
 @router.get("")
@@ -13,10 +44,10 @@ def get_rs(tickers: str):
 
     all_symbols = list(set(symbols + ["SPY"]))
 
-    # Fetch 40 days to guarantee 25 clean trading sessions
+    # Fetch 3 months for richer candle charts; RS computed on last 25 sessions
     raw = yf.download(
         all_symbols,
-        period="40d",
+        period="3mo",
         interval="1d",
         auto_adjust=True,
         progress=False,
@@ -25,7 +56,8 @@ def get_rs(tickers: str):
     if raw.empty:
         return []
 
-    closes = raw["Close"].dropna(how="all").tail(25)
+    closes_all = raw["Close"].dropna(how="all")
+    closes = closes_all.tail(25)
 
     if "SPY" not in closes.columns:
         return []
@@ -80,6 +112,26 @@ def get_rs(tickers: str):
                     "rs_momentum": round(mom, 2),
                 })
 
+            # Build OHLC candles from the full 3-month window
+            candles = []
+            for ts in closes_all.index:
+                try:
+                    o = raw["Open"][ticker].loc[ts]
+                    h = raw["High"][ticker].loc[ts]
+                    l = raw["Low"][ticker].loc[ts]
+                    c = raw["Close"][ticker].loc[ts]
+                    if any(v != v for v in (o, h, l, c)):  # NaN check
+                        continue
+                    candles.append({
+                        "time":  ts.strftime("%Y-%m-%d"),
+                        "open":  round(float(o), 2),
+                        "high":  round(float(h), 2),
+                        "low":   round(float(l), 2),
+                        "close": round(float(c), 2),
+                    })
+                except (KeyError, TypeError):
+                    continue
+
             results.append({
                 "ticker":      ticker,
                 "price":       round(float(prices.iloc[-1]), 2),
@@ -89,9 +141,15 @@ def get_rs(tickers: str):
                 "rs_strength": round(float(rs_norm.iloc[-1]), 2),
                 "rs_momentum": round(rs_mom, 2),
                 "tail":        tail,
+                "candles":     candles,
             })
         except Exception:
             continue
+
+    # Fetch names (cached)
+    names = _fetch_names([r["ticker"] for r in results])
+    for r in results:
+        r["name"] = names.get(r["ticker"], r["ticker"])
 
     # Rank by rs_slope descending
     results.sort(key=lambda r: r["rs_slope"], reverse=True)
