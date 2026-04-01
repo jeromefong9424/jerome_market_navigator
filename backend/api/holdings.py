@@ -23,7 +23,7 @@ def _save_cache(cache: dict):
 
 
 @router.get("")
-def get_holdings(tickers: str, top_n: int = 5):
+def get_holdings(tickers: str, top_n: int = 10):
     """Return top N holdings for each ETF ticker. Cached for 1 day."""
     symbols = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     cache = _load_cache()
@@ -33,8 +33,9 @@ def get_holdings(tickers: str, top_n: int = 5):
 
     for sym in symbols:
         entry = cache.get(sym)
-        if entry and now - entry.get("ts", 0) < CACHE_TTL:
-            result[sym] = entry["holdings"]
+        # Re-fetch if cache is fresh but has fewer holdings than requested
+        if entry and now - entry.get("ts", 0) < CACHE_TTL and len(entry.get("holdings", [])) >= top_n:
+            result[sym] = entry["holdings"][:top_n]
             continue
         try:
             df = yf.Ticker(sym).funds_data.top_holdings

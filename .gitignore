@@ -17,3 +17,11 @@ backend/ticker_names.json
 # Editor
 .DS_Store
 *.swp
+
+# Environment — never commit API keys
+.env
+.env.local
+frontend/.env
+frontend/.env.local
+backend/.env
+backend/.env.local

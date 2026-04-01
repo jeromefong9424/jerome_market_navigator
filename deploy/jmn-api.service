@@ -1,0 +1,14 @@
+[Unit]
+Description=Jerome Market Navigator API
+After=network.target
+
+[Service]
+User=jerome
+WorkingDirectory=/opt/jerome-market-navigator/backend
+EnvironmentFile=/opt/jerome-market-navigator/backend/.env
+ExecStart=/opt/jerome-market-navigator/backend/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

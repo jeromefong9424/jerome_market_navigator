@@ -25,3 +25,17 @@ export const removeTickerFromGroup = (group: string, ticker: string): Promise<Re
 
 export const fetchHoldings = (tickers: string[]): Promise<Record<string, string[]>> =>
   axios.get(`${BASE}/holdings`, { params: { tickers: tickers.join(',') } }).then((r) => r.data)
+
+export const fetchCandles = (ticker: string): Promise<{ time: string; open: number; high: number; low: number; close: number }[]> =>
+  axios.get(`${BASE}/rs`, { params: { tickers: ticker } }).then((r) => r.data[0]?.candles ?? [])
+
+export interface CompanyInfo {
+  ticker: string
+  name: string
+  sector: string
+  industry: string
+  summary: string
+}
+
+export const fetchInfo = (ticker: string): Promise<CompanyInfo> =>
+  axios.get(`${BASE}/info`, { params: { ticker } }).then((r) => r.data)

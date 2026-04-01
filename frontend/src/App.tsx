@@ -3,9 +3,9 @@ import RSDashboard from './pages/RSDashboard'
 
 export default function App() {
   return (
-    <div className="h-screen flex flex-col bg-[#0A0A0C] text-white overflow-hidden">
+    <div className="flex flex-col bg-[#0A0A0C] text-white min-h-screen">
       <Header />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         <RSDashboard />
       </div>
     </div>
