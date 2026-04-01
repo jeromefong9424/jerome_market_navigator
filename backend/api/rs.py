@@ -3,10 +3,12 @@ import yfinance as yf
 import numpy as np
 import json
 import os
+from datetime import date
 
 router = APIRouter(prefix="/api/rs", tags=["rs"])
 
 NAMES_FILE = os.path.join(os.path.dirname(__file__), '..', 'ticker_names.json')
+CACHE_FILE = os.path.join(os.path.dirname(__file__), '..', 'rs_cache.json')
 
 
 def _load_names() -> dict:
@@ -36,13 +38,47 @@ def _fetch_names(symbols: list[str]) -> dict:
     return cache
 
 
+# ─── RS cache: one yfinance fetch per day, results cached to disk ───────────
+def _load_rs_cache() -> dict:
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE) as f:
+            return json.load(f)
+    return {"date": "", "data": {}}
+
+
+def _save_rs_cache(cache: dict):
+    with open(CACHE_FILE, 'w') as f:
+        json.dump(cache, f)
+
+
 @router.get("")
 def get_rs(tickers: str):
     symbols = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     if not symbols:
         return []
 
-    all_symbols = list(set(symbols + ["SPY"]))
+    today = date.today().isoformat()
+    cache = _load_rs_cache()
+
+    # If cache is from today, return cached results for requested tickers
+    if cache["date"] == today:
+        cached = {r["ticker"]: r for r in cache["data"].values()} if isinstance(cache["data"], dict) else {}
+        hit = [cached[s] for s in symbols if s in cached]
+        miss = [s for s in symbols if s not in cached]
+        if not miss:
+            # Re-rank the subset
+            hit.sort(key=lambda r: r["rs_slope"], reverse=True)
+            for i, r in enumerate(hit):
+                r["rank"] = i + 1
+            return hit
+        # Partial miss — only fetch the missing tickers
+        symbols_to_fetch = miss
+    else:
+        # New day — wipe cache
+        cache = {"date": today, "data": {}}
+        symbols_to_fetch = symbols
+
+    all_symbols = list(set(symbols_to_fetch + ["SPY"]))
 
     # Fetch 3 months for richer candle charts; RS computed on last 25 sessions
     raw = yf.download(
@@ -151,9 +187,18 @@ def get_rs(tickers: str):
     for r in results:
         r["name"] = names.get(r["ticker"], r["ticker"])
 
+    # Save new results into today's cache
+    for r in results:
+        cache["data"][r["ticker"]] = r
+    cache["date"] = today
+    _save_rs_cache(cache)
+
+    # Merge with any previously cached hits and return only requested tickers
+    all_results = [cache["data"][s] for s in symbols if s in cache["data"]]
+
     # Rank by rs_slope descending
-    results.sort(key=lambda r: r["rs_slope"], reverse=True)
-    for i, r in enumerate(results):
+    all_results.sort(key=lambda r: r["rs_slope"], reverse=True)
+    for i, r in enumerate(all_results):
         r["rank"] = i + 1
 
-    return results
+    return all_results

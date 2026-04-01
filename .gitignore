@@ -13,6 +13,7 @@ frontend/.vite/
 # Generated cache files — auto-regenerated at runtime
 backend/etf_holdings.json
 backend/ticker_names.json
+backend/rs_cache.json
 
 # Editor
 .DS_Store
