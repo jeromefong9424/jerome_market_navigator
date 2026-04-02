@@ -1,8 +1,9 @@
 import json
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import yfinance as yf
+from .auth import require_api_key
 
 router = APIRouter(prefix="/api/tickers", tags=["tickers"])
 
@@ -40,7 +41,7 @@ def get_groups():
     return _load()
 
 
-@router.post("/groups")
+@router.post("/groups", dependencies=[Depends(require_api_key)])
 def create_group(body: GroupCreate):
     groups = _load()
     name = body.name.strip()
@@ -53,7 +54,7 @@ def create_group(body: GroupCreate):
     return groups
 
 
-@router.delete("/groups/{name}")
+@router.delete("/groups/{name}", dependencies=[Depends(require_api_key)])
 def delete_group(name: str):
     groups = _load()
     if name not in groups:
@@ -63,7 +64,7 @@ def delete_group(name: str):
     return groups
 
 
-@router.post("/groups/{name}/tickers")
+@router.post("/groups/{name}/tickers", dependencies=[Depends(require_api_key)])
 def add_ticker(name: str, body: TickerAdd):
     groups = _load()
     if name not in groups:
@@ -77,7 +78,7 @@ def add_ticker(name: str, body: TickerAdd):
     return groups
 
 
-@router.delete("/groups/{name}/tickers/{ticker}")
+@router.delete("/groups/{name}/tickers/{ticker}", dependencies=[Depends(require_api_key)])
 def remove_ticker(name: str, ticker: str):
     groups = _load()
     if name not in groups:
@@ -93,7 +94,7 @@ class ScanHoldingsRequest(BaseModel):
     top_n: int = 5
 
 
-@router.post("/scan-holdings")
+@router.post("/scan-holdings", dependencies=[Depends(require_api_key)])
 def scan_holdings(body: ScanHoldingsRequest):
     """For each ETF in the group, fetch top N holdings and save as a new group."""
     groups = _load()

@@ -38,7 +38,7 @@ def _fetch_names(symbols: list[str]) -> dict:
     return cache
 
 
-# ─── RS cache: one yfinance fetch per day, results cached to disk ───────────
+# ─── RS cache: results cached to disk, refresh only on demand ───────────────
 def _load_rs_cache() -> dict:
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE) as f:
@@ -51,36 +51,10 @@ def _save_rs_cache(cache: dict):
         json.dump(cache, f)
 
 
-@router.get("")
-def get_rs(tickers: str):
-    symbols = [t.strip().upper() for t in tickers.split(",") if t.strip()]
-    if not symbols:
-        return []
-
-    today = date.today().isoformat()
-    cache = _load_rs_cache()
-
-    # If cache is from today, return cached results for requested tickers
-    if cache["date"] == today:
-        cached = {r["ticker"]: r for r in cache["data"].values()} if isinstance(cache["data"], dict) else {}
-        hit = [cached[s] for s in symbols if s in cached]
-        miss = [s for s in symbols if s not in cached]
-        if not miss:
-            # Re-rank the subset
-            hit.sort(key=lambda r: r["rs_slope"], reverse=True)
-            for i, r in enumerate(hit):
-                r["rank"] = i + 1
-            return hit
-        # Partial miss — only fetch the missing tickers
-        symbols_to_fetch = miss
-    else:
-        # New day — wipe cache
-        cache = {"date": today, "data": {}}
-        symbols_to_fetch = symbols
-
+def _compute_rs(symbols_to_fetch: list[str], cache: dict) -> list[dict]:
+    """Fetch from yfinance and compute RS metrics for the given symbols."""
     all_symbols = list(set(symbols_to_fetch + ["SPY"]))
 
-    # Fetch 3 months for richer candle charts; RS computed on last 25 sessions
     raw = yf.download(
         all_symbols,
         period="3mo",
@@ -101,7 +75,7 @@ def get_rs(tickers: str):
     spy = closes["SPY"].dropna()
     results = []
 
-    for ticker in symbols:
+    for ticker in symbols_to_fetch:
         try:
             if ticker not in closes.columns:
                 continue
@@ -112,30 +86,23 @@ def get_rs(tickers: str):
             spy_aligned = spy.loc[prices.index].dropna()
             prices = prices.loc[spy_aligned.index]
 
-            # RS Ratio series (price / SPY)
             rs_ratio = prices / spy_aligned
-
-            # Normalize to 100 at start of window
             rs_norm = (rs_ratio / rs_ratio.iloc[0]) * 100
 
             n = len(rs_norm)
             x = np.arange(n)
 
-            # RS Slope over full window
             slope, _ = np.polyfit(x, rs_norm.values, 1)
 
-            # 5d slope for bar color
             if n >= 5:
                 slope_5d, _ = np.polyfit(x[-5:], rs_norm.values[-5:], 1)
             else:
                 slope_5d = slope
 
-            # RS Momentum — 10d ROC
             rs_mom = 0.0
             if len(rs_ratio) >= 11:
                 rs_mom = float(((rs_ratio.iloc[-1] / rs_ratio.iloc[-11]) - 1) * 100)
 
-            # Historical tail for RRG (last 5 days)
             tail = []
             for i in range(max(-5, -n), 0):
                 idx = i
@@ -148,7 +115,6 @@ def get_rs(tickers: str):
                     "rs_momentum": round(mom, 2),
                 })
 
-            # Build OHLC candles from the full 3-month window
             candles = []
             for ts in closes_all.index:
                 try:
@@ -156,7 +122,7 @@ def get_rs(tickers: str):
                     h = raw["High"][ticker].loc[ts]
                     l = raw["Low"][ticker].loc[ts]
                     c = raw["Close"][ticker].loc[ts]
-                    if any(v != v for v in (o, h, l, c)):  # NaN check
+                    if any(v != v for v in (o, h, l, c)):
                         continue
                     candles.append({
                         "time":  ts.strftime("%Y-%m-%d"),
@@ -182,23 +148,63 @@ def get_rs(tickers: str):
         except Exception:
             continue
 
-    # Fetch names (cached)
     names = _fetch_names([r["ticker"] for r in results])
     for r in results:
         r["name"] = names.get(r["ticker"], r["ticker"])
 
-    # Save new results into today's cache
+    # Save into cache
+    today = date.today().isoformat()
+    cache["date"] = today
     for r in results:
         cache["data"][r["ticker"]] = r
-    cache["date"] = today
     _save_rs_cache(cache)
 
-    # Merge with any previously cached hits and return only requested tickers
-    all_results = [cache["data"][s] for s in symbols if s in cache["data"]]
+    return results
 
-    # Rank by rs_slope descending
-    all_results.sort(key=lambda r: r["rs_slope"], reverse=True)
-    for i, r in enumerate(all_results):
+
+def _rank_and_return(symbols: list[str], cache: dict) -> list[dict]:
+    """Pick requested tickers from cache, rank, and return."""
+    results = [cache["data"][s] for s in symbols if s in cache["data"]]
+    results.sort(key=lambda r: r["rs_slope"], reverse=True)
+    for i, r in enumerate(results):
         r["rank"] = i + 1
+    return results
 
-    return all_results
+
+@router.get("")
+def get_rs(tickers: str, refresh: bool = False):
+    symbols = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    if not symbols:
+        return []
+
+    cache = _load_rs_cache()
+    today = date.today().isoformat()
+    has_cache = cache["data"] and any(s in cache["data"] for s in symbols)
+
+    # Force refresh — fetch everything fresh
+    if refresh:
+        cache = {"date": today, "data": {}}
+        _compute_rs(symbols, cache)
+        return _rank_and_return(symbols, cache)
+
+    # Cache is from today — serve it, fetch only missing tickers
+    if cache["date"] == today and has_cache:
+        miss = [s for s in symbols if s not in cache["data"]]
+        if miss:
+            _compute_rs(miss, cache)
+            cache = _load_rs_cache()  # reload after save
+        return _rank_and_return(symbols, cache)
+
+    # Cache exists but is stale — return stale data immediately for known tickers
+    # New tickers with no cache at all will need a fresh fetch
+    if has_cache:
+        miss = [s for s in symbols if s not in cache["data"]]
+        if miss:
+            _compute_rs(miss, cache)
+            cache = _load_rs_cache()
+        return _rank_and_return(symbols, cache)
+
+    # No cache at all — must fetch
+    cache = {"date": today, "data": {}}
+    _compute_rs(symbols, cache)
+    return _rank_and_return(symbols, cache)

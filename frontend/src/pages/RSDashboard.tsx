@@ -1441,10 +1441,10 @@ export default function RSDashboard() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const tickers  = groups[activeGroup] ?? []
 
-  const load = useCallback(async (list: string[]) => {
+  const load = useCallback(async (list: string[], refresh = false) => {
     if (list.length === 0) return
     setLoading(true); setError(null)
-    try { setData(await fetchRS(list)) }
+    try { setData(await fetchRS(list, refresh)) }
     catch { setError('Failed to fetch RS data') }
     finally { setLoading(false) }
   }, [])
@@ -1458,14 +1458,12 @@ export default function RSDashboard() {
     }).catch(() => setError('Failed to load groups'))
   }, [])
 
-  // Full reload only when activeGroup switches (wipe + refetch all)
+  // Full reload only when activeGroup switches — uses cache (no refresh)
   useEffect(() => {
     if (!activeGroup) return
     const list = groups[activeGroup] ?? []
     setData([]); setActiveSector(null); setHoldingData([])
-    load(list)
-    if (timerRef.current) clearInterval(timerRef.current)
-    timerRef.current = setInterval(() => load(groups[activeGroup] ?? []), 60_000)
+    load(list) // serves cached data instantly
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGroup]) // intentionally omit `groups` — ticker add/remove uses incremental update below
@@ -1681,7 +1679,7 @@ export default function RSDashboard() {
               <Sparkles size={10} />
               Audit
             </button>
-            <button onClick={() => load(tickers)} disabled={loading}
+            <button onClick={() => load(tickers, true)} disabled={loading}
               className="text-zinc-600 hover:text-white transition-colors disabled:opacity-30 p-1">
               <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
             </button>
