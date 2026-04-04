@@ -121,20 +121,27 @@ def _compute_stock_rs(stock_ticker: str, spy_closes: np.ndarray) -> dict | None:
             except Exception:
                 continue
 
+        # 1-week and 1-month performance
+        n = len(closes)
+        pct_1w = round(((current_close / float(closes[-6])) - 1) * 100, 2) if n >= 6 else None
+        pct_1m = round(((current_close / float(closes[-22])) - 1) * 100, 2) if n >= 22 else None
+
         return {
             "ticker": stock_ticker,
             "rs_slope": round(float(slope), 4),
-            "above_ema8": current_close > ema8 if ema8 else False,
-            "above_ema21": current_close > ema21 if ema21 else False,
-            "above_ema50": current_close > ema50 if ema50 else None,
+            "above_ema8": bool(current_close > ema8) if ema8 else False,
+            "above_ema21": bool(current_close > ema21) if ema21 else False,
+            "above_ema50": bool(current_close > ema50) if ema50 else None,
             "pct_from_high": round(pct_from_high, 2),
-            "atr_contraction": round(atr_contraction, 3),
-            "vol_ratio": round(vol_ratio, 3),
-            "price": round(current_close, 2),
-            "ema8": round(ema8, 2) if ema8 else None,
-            "ema21": round(ema21, 2) if ema21 else None,
-            "ema50": round(ema50, 2) if ema50 else None,
+            "atr_contraction": round(float(atr_contraction), 3),
+            "vol_ratio": round(float(vol_ratio), 3),
+            "price": round(float(current_close), 2),
+            "ema8": round(float(ema8), 2) if ema8 else None,
+            "ema21": round(float(ema21), 2) if ema21 else None,
+            "ema50": round(float(ema50), 2) if ema50 else None,
             "high52w": round(high52w, 2),
+            "pct_1w": pct_1w,
+            "pct_1m": pct_1m,
             "ohlcv": ohlcv,
         }
     except Exception:

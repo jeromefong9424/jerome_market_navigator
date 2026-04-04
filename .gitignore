@@ -14,6 +14,9 @@ frontend/.vite/
 backend/etf_holdings.json
 backend/ticker_names.json
 backend/rs_cache.json
+backend/regime_cache.json
+backend/theme_leaders_cache.json
+backend/theme_map_cache.json
 
 # Editor
 .DS_Store

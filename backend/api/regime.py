@@ -50,7 +50,7 @@ def get_regime():
         return cache
 
     tickers = ["SPY", "QQQ", "IWM", "IBIT"]
-    raw = yf.download(tickers, period="3mo", interval="1d", auto_adjust=True, progress=False)
+    raw = yf.download(tickers, period="1y", interval="1d", auto_adjust=True, progress=False)
 
     closes = raw["Close"].dropna()
 
@@ -71,12 +71,38 @@ def get_regime():
     ibit_sma50 = sma(ibit_arr, 50)
     ibit_dist = ((ibit_close / ibit_sma50) - 1) * 100 if ibit_sma50 else 0
 
+    # 52-week high
+    spy_52w_high = float(closes["SPY"].iloc[-252:].max()) if len(closes) >= 252 else float(closes["SPY"].max())
+    qqq_52w_high = float(closes["QQQ"].iloc[-252:].max()) if len(closes) >= 252 else float(closes["QQQ"].max())
+    spy_from_high = ((spy_close / spy_52w_high) - 1) * 100
+    qqq_from_high = ((qqq_close / qqq_52w_high) - 1) * 100
+
+    # YTD start (first trading day of year)
+    current_year = date.today().year
+    ytd_start_spy = None
+    ytd_start_qqq = None
+    for i, idx in enumerate(closes.index):
+        if idx.year == current_year:
+            ytd_start_spy = float(closes["SPY"].iloc[i])
+            ytd_start_qqq = float(closes["QQQ"].iloc[i])
+            break
+    spy_ytd = ((spy_close / ytd_start_spy) - 1) * 100 if ytd_start_spy else 0
+    qqq_ytd = ((qqq_close / ytd_start_qqq) - 1) * 100 if ytd_start_qqq else 0
+
+    # 1-week performance (5 trading days)
+    n = len(closes)
+    spy_1w = ((spy_close / float(closes["SPY"].iloc[-6])) - 1) * 100 if n >= 6 else 0
+    qqq_1w = ((qqq_close / float(closes["QQQ"].iloc[-6])) - 1) * 100 if n >= 6 else 0
+
+    # 1-month performance (~21 trading days)
+    spy_1m = ((spy_close / float(closes["SPY"].iloc[-22])) - 1) * 100 if n >= 22 else 0
+    qqq_1m = ((qqq_close / float(closes["QQQ"].iloc[-22])) - 1) * 100 if n >= 22 else 0
+
     # IWM / QQQ 20-day ratio
     if len(closes) >= 20:
         iwm_20d = closes["IWM"].iloc[-20:].mean()
         qqq_20d = closes["QQQ"].iloc[-20:].mean()
         iwm_qqq_ratio = iwm_20d / qqq_20d if qqq_20d else 1
-        # 5-day change in the ratio
         if len(closes) >= 25:
             iwm_25d = closes["IWM"].iloc[-25:].mean()
             qqq_25d = closes["QQQ"].iloc[-25:].mean()
@@ -89,8 +115,8 @@ def get_regime():
         ratio_change = 0.0
 
     # Regime determination
-    spy_above = spy_close > spy_ema8
-    qqq_above = qqq_close > qqq_ema8
+    spy_above = bool(spy_close > spy_ema8)
+    qqq_above = bool(qqq_close > qqq_ema8)
 
     if spy_above and qqq_above:
         regime = "green"
@@ -109,23 +135,33 @@ def get_regime():
             "ema8": round(spy_ema8, 2),
             "distance_pct": round(spy_dist, 2),
             "above": spy_above,
+            "52w_high": round(spy_52w_high, 2),
+            "from_high_pct": round(spy_from_high, 2),
+            "ytd_pct": round(spy_ytd, 2),
+            "pct_1w": round(spy_1w, 2),
+            "pct_1m": round(spy_1m, 2),
         },
         "qqq": {
             "close": round(qqq_close, 2),
             "ema8": round(qqq_ema8, 2),
             "distance_pct": round(qqq_dist, 2),
             "above": qqq_above,
+            "52w_high": round(qqq_52w_high, 2),
+            "from_high_pct": round(qqq_from_high, 2),
+            "ytd_pct": round(qqq_ytd, 2),
+            "pct_1w": round(qqq_1w, 2),
+            "pct_1m": round(qqq_1m, 2),
         },
         "iwm_qqq": {
-            "ratio": round(iwm_qqq_ratio, 4),
-            "ratio_5d_change": round(ratio_change * 100, 2),
-            "risk_on": ratio_change > 0,
+            "ratio": round(float(iwm_qqq_ratio), 4),
+            "ratio_5d_change": round(float(ratio_change) * 100, 2),
+            "risk_on": bool(ratio_change > 0),
         },
         "ibit": {
-            "close": round(ibit_close, 2),
-            "sma50": round(ibit_sma50, 2),
-            "distance_pct": round(ibit_dist, 2),
-            "above": ibit_close > ibit_sma50,
+            "close": round(float(ibit_close), 2),
+            "sma50": round(float(ibit_sma50), 2),
+            "distance_pct": round(float(ibit_dist), 2),
+            "above": bool(ibit_close > ibit_sma50),
         },
         "regime": regime,
         "label": label,

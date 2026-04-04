@@ -192,7 +192,7 @@ export default function Top10LeadersTable({ themeId }: { themeId: string; themeN
         <table className="w-full text-[11px]">
           <thead>
             <tr className="border-b border-white/5">
-              {['#', 'Ticker', 'RS Slope', '8EMA', '21EMA', '50EMA', '52w Hi%', 'ATR C.', 'Vol.'].map(h => (
+              {['#', 'Ticker', 'RS Slope', '8EMA', '21EMA', '50EMA', '1W%', '1M%', '52w Hi%', 'ATR C.', 'Vol.'].map(h => (
                 <th key={h} className="px-2 py-2 text-left text-[9px] uppercase tracking-widest text-zinc-600 font-semibold whitespace-nowrap">
                   {h}
                 </th>
@@ -261,6 +261,16 @@ export default function Top10LeadersTable({ themeId }: { themeId: string; themeN
                   {/* 50 EMA */}
                   <td className="px-2 py-2 font-mono text-[10px]" style={{ color: leader.above_ema50 === null ? '#6e7681' : leader.above_ema50 ? '#2ea043' : '#f85149' }}>
                     {leader.ema50 ? `$${leader.ema50.toFixed(2)}` : '—'}
+                  </td>
+
+                  {/* 1W% */}
+                  <td className="px-2 py-2 font-mono tabular-nums text-[10px]" style={{ color: leader.pct_1w !== null && leader.pct_1w >= 0 ? '#2ea043' : '#f85149' }}>
+                    {leader.pct_1w != null ? `${leader.pct_1w >= 0 ? '+' : ''}${leader.pct_1w.toFixed(1)}%` : '—'}
+                  </td>
+
+                  {/* 1M% */}
+                  <td className="px-2 py-2 font-mono tabular-nums text-[10px]" style={{ color: leader.pct_1m !== null && leader.pct_1m >= 0 ? '#2ea043' : '#f85149' }}>
+                    {leader.pct_1m != null ? `${leader.pct_1m >= 0 ? '+' : ''}${leader.pct_1m.toFixed(1)}%` : '—'}
                   </td>
 
                   {/* 52w Hi */}

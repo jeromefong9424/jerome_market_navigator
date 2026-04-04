@@ -46,8 +46,16 @@ export const fetchInfo = (ticker: string): Promise<CompanyInfo> =>
 // ─── Regime ───────────────────────────────────────────────────────────────────
 export interface RegimeData {
   date: string
-  spy: { close: number; ema8: number; distance_pct: number; above: boolean }
-  qqq: { close: number; ema8: number; distance_pct: number; above: boolean }
+  spy: {
+    close: number; ema8: number; distance_pct: number; above: boolean
+    pct_1w: number; pct_1m: number; ytd_pct: number
+    '52w_high': number; from_high_pct: number
+  }
+  qqq: {
+    close: number; ema8: number; distance_pct: number; above: boolean
+    pct_1w: number; pct_1m: number; ytd_pct: number
+    '52w_high': number; from_high_pct: number
+  }
   iwm_qqq: { ratio: number; ratio_5d_change: number; risk_on: boolean }
   ibit: { close: number; sma50: number; distance_pct: number; above: boolean }
   regime: 'green' | 'yellow' | 'red'
@@ -67,6 +75,8 @@ export interface ThemeLeader {
   above_ema21: boolean
   above_ema50: boolean | null
   pct_from_high: number
+  pct_1w: number | null
+  pct_1m: number | null
   atr_contraction: number
   vol_ratio: number
   ema8: number | null
