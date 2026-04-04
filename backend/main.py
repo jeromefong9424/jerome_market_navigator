@@ -3,7 +3,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import rs, tickers, holdings, claude, info
+from api import rs, tickers, holdings, claude, info, regime, theme_leaders, theme_map
 
 app = FastAPI(title="Jerome Market Navigator API")
 
@@ -25,3 +25,6 @@ app.include_router(tickers.router)
 app.include_router(holdings.router)
 app.include_router(claude.router)
 app.include_router(info.router)
+app.include_router(regime.router)
+app.include_router(theme_leaders.router)
+app.include_router(theme_map.router)

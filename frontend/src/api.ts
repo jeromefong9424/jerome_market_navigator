@@ -42,3 +42,80 @@ export interface CompanyInfo {
 
 export const fetchInfo = (ticker: string): Promise<CompanyInfo> =>
   axios.get(`${BASE}/info`, { params: { ticker } }).then((r) => r.data)
+
+// ─── Regime ───────────────────────────────────────────────────────────────────
+export interface RegimeData {
+  date: string
+  spy: { close: number; ema8: number; distance_pct: number; above: boolean }
+  qqq: { close: number; ema8: number; distance_pct: number; above: boolean }
+  iwm_qqq: { ratio: number; ratio_5d_change: number; risk_on: boolean }
+  ibit: { close: number; sma50: number; distance_pct: number; above: boolean }
+  regime: 'green' | 'yellow' | 'red'
+  label: string
+}
+
+export const fetchRegime = (): Promise<RegimeData> =>
+  axios.get(`${BASE}/regime`).then((r) => r.data)
+
+// ─── Theme Leaders ─────────────────────────────────────────────────────────────
+export interface ThemeLeader {
+  ticker: string
+  rank: number
+  rs_slope: number
+  price: number
+  above_ema8: boolean
+  above_ema21: boolean
+  above_ema50: boolean | null
+  pct_from_high: number
+  atr_contraction: number
+  vol_ratio: number
+  ema8: number | null
+  ema21: number | null
+  ema50: number | null
+  high52w: number
+  is_gap: boolean
+  gap_branch: string
+  ohlcv: { time: string; open: number; high: number; low: number; close: number; volume: number }[]
+}
+
+export interface ThemeLeadersResponse {
+  date: string
+  theme_id: string
+  theme_name: string
+  leaders: ThemeLeader[]
+}
+
+export const fetchThemeLeaders = (themeId: string): Promise<ThemeLeadersResponse> =>
+  axios.get(`${BASE}/theme/${themeId}/leaders`).then((r) => r.data)
+
+// ─── Theme Map (AI Supply Chain) ────────────────────────────────────────────────
+export interface ThemeMapBranch {
+  name: string
+  status: 'running' | 'setting_up' | 'early' | 'extended' | 'correcting'
+  tickers: string[]
+  mapped_etf: string | null
+  note: string
+}
+
+export interface ThemeMapTheme {
+  id: string
+  demand_driver: string
+  catalyst: string
+  branches: ThemeMapBranch[]
+}
+
+export interface ThemeMapBriefing {
+  regime: string
+  hottest: string
+  gaps: string
+  avoid: string
+}
+
+export interface ThemeMapResponse {
+  date: string
+  themes: ThemeMapTheme[]
+  briefing: ThemeMapBriefing
+}
+
+export const fetchThemeMap = (): Promise<ThemeMapResponse> =>
+  axios.get(`${BASE}/theme-map`).then((r) => r.data)

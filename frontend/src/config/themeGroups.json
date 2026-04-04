@@ -1,0 +1,124 @@
+{
+  "themes": [
+    {
+      "id": "oil_gas",
+      "name": "Oil & Gas / Energy",
+      "etfs": ["XLE", "XOP", "FCG"],
+      "coverageGaps": [
+        { "branch": "Oil Services", "missingETF": "OIH", "leaders": ["SLB", "HAL", "BKR", "NOV"] },
+        { "branch": "Tanker / Shipping", "missingETF": null, "leaders": ["FRO", "STNG", "INSW", "TNK"] }
+      ]
+    },
+    {
+      "id": "defense_space",
+      "name": "Defense / Aerospace / Space",
+      "etfs": ["ITA", "SHLD", "UFO", "ARKX"],
+      "coverageGaps": [
+        { "branch": "Drones", "missingETF": null, "leaders": ["KTOS", "AVAV", "RCAT"] }
+      ]
+    },
+    {
+      "id": "nuclear_uranium",
+      "name": "Nuclear / Uranium",
+      "etfs": ["URNM", "NLR"],
+      "coverageGaps": []
+    },
+    {
+      "id": "power_grid",
+      "name": "Power / Grid / Clean Energy",
+      "etfs": ["GRID", "ICLN", "LIT", "XLU"],
+      "coverageGaps": [
+        { "branch": "Data Center Power", "missingETF": null, "leaders": ["GEV", "VST", "CEG", "NRG"] }
+      ]
+    },
+    {
+      "id": "ai_datacenter",
+      "name": "AI / Data Center / Robotics",
+      "etfs": ["AIQ", "DTCR", "BOTZ", "ARKQ", "HUMN"],
+      "coverageGaps": [
+        { "branch": "Optical / Networking", "missingETF": null, "leaders": ["AAOI", "GLW", "FSLY", "LITE", "CIEN"] },
+        { "branch": "Cooling / Infra", "missingETF": null, "leaders": ["VRT", "GNRC"] },
+        { "branch": "Memory / Storage", "missingETF": null, "leaders": ["SNDK", "MU", "WDC"] }
+      ]
+    },
+    {
+      "id": "semis",
+      "name": "Semiconductors",
+      "etfs": ["SMH"],
+      "coverageGaps": []
+    },
+    {
+      "id": "cloud_software",
+      "name": "Cloud / Software",
+      "etfs": ["CLOU", "WCLD", "ARKW"],
+      "coverageGaps": [
+        { "branch": "Communication Services", "missingETF": "XLC", "leaders": ["META", "GOOGL", "NFLX", "DIS"] }
+      ]
+    },
+    {
+      "id": "cyber",
+      "name": "Cybersecurity",
+      "etfs": ["CIBR", "HACK"],
+      "coverageGaps": []
+    },
+    {
+      "id": "crypto",
+      "name": "Crypto / Blockchain",
+      "etfs": ["IBIT", "BKCH"],
+      "coverageGaps": []
+    },
+    {
+      "id": "gold_metals",
+      "name": "Gold / Silver / Metals",
+      "etfs": ["GLD", "SLV", "GDX", "GDXJ", "COPX", "REMX"],
+      "coverageGaps": []
+    },
+    {
+      "id": "biotech_health",
+      "name": "Biotech / Healthcare",
+      "etfs": ["XLV", "IBB", "XBI", "ARKG"],
+      "coverageGaps": [
+        { "branch": "GLP-1 / Weight Loss", "missingETF": null, "leaders": ["LLY", "NVO", "HIMS"] }
+      ]
+    },
+    {
+      "id": "consumer_retail",
+      "name": "Consumer / Retail",
+      "etfs": ["XLY", "XLP", "XRT"],
+      "coverageGaps": []
+    },
+    {
+      "id": "financials",
+      "name": "Financials / Fintech",
+      "etfs": ["XLF", "FINX"],
+      "coverageGaps": [
+        { "branch": "Payment / Lending", "missingETF": null, "leaders": ["AFRM", "UPST", "RKT", "SQ"] }
+      ]
+    },
+    {
+      "id": "real_estate",
+      "name": "Real Estate / Housing",
+      "etfs": ["XLRE", "XHB", "ITB"],
+      "coverageGaps": []
+    },
+    {
+      "id": "infrastructure",
+      "name": "Infrastructure / EV / Industrials",
+      "etfs": ["PAVE", "DRIV", "XLI"],
+      "coverageGaps": []
+    },
+    {
+      "id": "materials",
+      "name": "Materials",
+      "etfs": ["XLB"],
+      "coverageGaps": []
+    },
+    {
+      "id": "broad_innovation",
+      "name": "Broad Innovation / Other",
+      "etfs": ["ARKK", "MOO", "PHO", "JETS", "XLK"],
+      "coverageGaps": []
+    }
+  ],
+  "indices": ["SPY", "QQQ", "IWM"]
+}
