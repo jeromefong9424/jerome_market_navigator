@@ -2,10 +2,13 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import * as HoverCard from '@radix-ui/react-hover-card'
+import * as Popover from '@radix-ui/react-popover'
 import { createChart, ColorType, CrosshairMode, CandlestickSeries } from 'lightweight-charts'
-import { RefreshCw, Plus, Trash2, TrendingUp, TrendingDown, Sparkles, ChevronDown, ChevronUp, Wand2, GripVertical, ChevronsUpDown } from 'lucide-react'
+import { RefreshCw, Plus, Trash2, TrendingUp, TrendingDown, Sparkles, ChevronDown, ChevronUp, Wand2, GripVertical, ChevronsUpDown, BarChart3, TableProperties, LayoutGrid } from 'lucide-react'
 import { fetchRS, fetchGroups, createGroup, deleteGroup, addTickerToGroup, removeTickerFromGroup, fetchHoldings, fetchInfo, type CompanyInfo } from '../api'
 import { useStore } from '../store'
+import { useMediaQuery } from '../hooks/useMediaQuery'
+import { useIsTouchDevice } from '../hooks/useIsTouchDevice'
 
 // ─── Section types ────────────────────────────────────────────────────────────
 type SectionName = 'Indices' | 'Sector ETFs' | 'Thematic ETFs'
@@ -121,6 +124,57 @@ function RatioSparkline({ values, color = '#4ADE80' }: { values: number[]; color
 }
 
 // ─── HoldingHoverRow — single holding row with lazy company info ─────────────
+function HoldingCardContent({ row, etfTicker, hPct1d, delta, info }: {
+  row: RSRow; etfTicker: string; hPct1d: number; delta: number; info: CompanyInfo | null
+}) {
+  return (
+    <div className="rounded-xl border border-[#2A2A2A] bg-[#0D0D0D] shadow-2xl overflow-hidden" style={{ width: 280 }}>
+      <div className="px-3 py-2 border-b border-[#1A1A1A] flex items-center justify-between">
+        <div className="min-w-0">
+          <span className="text-white text-[11px] font-bold">{row.ticker}</span>
+          {info && <span className="text-zinc-500 text-[10px] ml-1.5">{info.name}</span>}
+        </div>
+        <span className="text-zinc-600 text-[9px] flex-shrink-0 ml-2">3mo · daily</span>
+      </div>
+      <CandleChart candles={row.candles} height={140} />
+      <div className="px-3 py-1.5 border-t border-[#1A1A1A] flex items-center gap-3">
+        <span className="text-[9px] text-zinc-600">
+          1D <span className={delta >= 0 ? 'text-emerald-400' : 'text-rose-500'}>
+            {delta >= 0 ? '+' : ''}{hPct1d.toFixed(2)}%
+          </span>
+        </span>
+        <span className="text-[9px] text-zinc-600">
+          vs {etfTicker} <span className={delta >= 0 ? 'text-emerald-400' : 'text-rose-500'}>
+            {delta >= 0 ? '+' : ''}{delta.toFixed(2)}%
+          </span>
+        </span>
+      </div>
+      {info && (info.summary || info.sector) && (
+        <div className="px-3 py-2 border-t border-[#1A1A1A] space-y-1">
+          {info.sector && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 rounded">
+                {info.sector}
+              </span>
+              {info.industry && (
+                <span className="text-[8px] text-zinc-600 truncate">{info.industry}</span>
+              )}
+            </div>
+          )}
+          {info.summary && (
+            <p className="text-[10px] text-zinc-500 leading-relaxed">{info.summary}</p>
+          )}
+        </div>
+      )}
+      {!info && (
+        <div className="px-3 py-2 border-t border-[#1A1A1A]">
+          <div className="h-2 rounded w-3/4 shimmer-line" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function HoldingHoverRow({
   row, etfTicker, hPct1d, delta, deltaColor, ratioValues, cols, showPrice,
 }: {
@@ -128,85 +182,66 @@ function HoldingHoverRow({
   ratioValues: number[]; cols: string; showPrice: boolean
 }) {
   const [info, setInfo] = useState<CompanyInfo | null>(null)
+  const isTouch = useIsTouchDevice()
+  const isNarrow = !useMediaQuery('(min-width: 640px)')
 
   const handleOpen = (open: boolean) => {
     if (!open || info !== null) return
     fetchInfo(row.ticker).then(setInfo).catch(() => {})
   }
 
+  const triggerRow = (
+    <div
+      className="grid items-center gap-2 px-2 py-2 rounded-lg border border-[#1A1A1A]
+                 bg-white/5 hover:bg-white/[0.07] hover:border-[#2A2A2A]
+                 transition-all duration-150 cursor-default select-none"
+      style={{ gridTemplateColumns: cols }}
+    >
+      <span className="text-white font-mono text-[11px] font-semibold">{row.ticker}</span>
+      {showPrice && (
+        <span className="text-zinc-400 font-mono text-[10px] tabular-nums">
+          ${row.price.toFixed(2)}
+        </span>
+      )}
+      <div className="flex items-center gap-1 min-w-0">
+        {delta >= 0
+          ? <TrendingUp   size={9} className="text-[#22C55E] flex-shrink-0" />
+          : <TrendingDown size={9} className="text-[#F87171] flex-shrink-0" />}
+        <span className={`font-mono text-[10px] tabular-nums ${deltaColor}`}>
+          {delta >= 0 ? '+' : ''}{delta.toFixed(2)}%
+        </span>
+      </div>
+      <RatioSparkline values={ratioValues} color={delta >= 0 ? '#22C55E' : '#F87171'} />
+    </div>
+  )
+
+  // Touch devices: use Popover (tap to open)
+  if (isTouch) {
+    return (
+      <Popover.Root onOpenChange={handleOpen}>
+        <Popover.Trigger asChild>{triggerRow}</Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            side={isNarrow ? 'bottom' : 'left'}
+            sideOffset={8}
+            align="center"
+            className="z-50 outline-none"
+          >
+            <HoldingCardContent row={row} etfTicker={etfTicker} hPct1d={hPct1d} delta={delta} info={info} />
+            <Popover.Arrow className="fill-[#2A2A2A]" />
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    )
+  }
+
+  // Desktop: use HoverCard (hover to open)
   return (
     <HoverCard.Root openDelay={200} closeDelay={100} onOpenChange={handleOpen}>
-      <HoverCard.Trigger asChild>
-        <div
-          className="grid items-center gap-2 px-2 py-2 rounded-lg border border-[#1A1A1A]
-                     bg-white/5 hover:bg-white/[0.07] hover:border-[#2A2A2A]
-                     transition-all duration-150 cursor-default select-none"
-          style={{ gridTemplateColumns: cols }}
-        >
-          <span className="text-white font-mono text-[11px] font-semibold">{row.ticker}</span>
-          {showPrice && (
-            <span className="text-zinc-400 font-mono text-[10px] tabular-nums">
-              ${row.price.toFixed(2)}
-            </span>
-          )}
-          <div className="flex items-center gap-1 min-w-0">
-            {delta >= 0
-              ? <TrendingUp   size={9} className="text-[#22C55E] flex-shrink-0" />
-              : <TrendingDown size={9} className="text-[#F87171] flex-shrink-0" />}
-            <span className={`font-mono text-[10px] tabular-nums ${deltaColor}`}>
-              {delta >= 0 ? '+' : ''}{delta.toFixed(2)}%
-            </span>
-          </div>
-          <RatioSparkline values={ratioValues} color={delta >= 0 ? '#22C55E' : '#F87171'} />
-        </div>
-      </HoverCard.Trigger>
-
+      <HoverCard.Trigger asChild>{triggerRow}</HoverCard.Trigger>
       <HoverCard.Portal>
         <HoverCard.Content side="left" sideOffset={12} align="center" className="z-50 outline-none">
-          <div className="rounded-xl border border-[#2A2A2A] bg-[#0D0D0D] shadow-2xl overflow-hidden" style={{ width: 280 }}>
-            <div className="px-3 py-2 border-b border-[#1A1A1A] flex items-center justify-between">
-              <div className="min-w-0">
-                <span className="text-white text-[11px] font-bold">{row.ticker}</span>
-                {info && <span className="text-zinc-500 text-[10px] ml-1.5">{info.name}</span>}
-              </div>
-              <span className="text-zinc-600 text-[9px] flex-shrink-0 ml-2">3mo · daily</span>
-            </div>
-            <CandleChart candles={row.candles} height={140} />
-            <div className="px-3 py-1.5 border-t border-[#1A1A1A] flex items-center gap-3">
-              <span className="text-[9px] text-zinc-600">
-                1D <span className={delta >= 0 ? 'text-emerald-400' : 'text-rose-500'}>
-                  {delta >= 0 ? '+' : ''}{hPct1d.toFixed(2)}%
-                </span>
-              </span>
-              <span className="text-[9px] text-zinc-600">
-                vs {etfTicker} <span className={delta >= 0 ? 'text-emerald-400' : 'text-rose-500'}>
-                  {delta >= 0 ? '+' : ''}{delta.toFixed(2)}%
-                </span>
-              </span>
-            </div>
-            {info && (info.summary || info.sector) && (
-              <div className="px-3 py-2 border-t border-[#1A1A1A] space-y-1">
-                {info.sector && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 rounded">
-                      {info.sector}
-                    </span>
-                    {info.industry && (
-                      <span className="text-[8px] text-zinc-600 truncate">{info.industry}</span>
-                    )}
-                  </div>
-                )}
-                {info.summary && (
-                  <p className="text-[10px] text-zinc-500 leading-relaxed">{info.summary}</p>
-                )}
-              </div>
-            )}
-            {!info && (
-              <div className="px-3 py-2 border-t border-[#1A1A1A]">
-                <div className="h-2 rounded w-3/4 shimmer-line" />
-              </div>
-            )}
-          </div>
+          <HoldingCardContent row={row} etfTicker={etfTicker} hPct1d={hPct1d} delta={delta} info={info} />
           <HoverCard.Arrow className="fill-[#2A2A2A]" />
         </HoverCard.Content>
       </HoverCard.Portal>
@@ -311,18 +346,36 @@ function HoldingsPanel({
 }
 
 // ─── RSHistogram ─────────────────────────────────────────────────────────────
-// Column grid template — shared between TickerRow header and rows
-// ⠿(drag) | Asset | Price | 1D% | 1W% | 52WHI% | YTD% | 5D Trend | RS Mom | ×
-const ROW_COLS = '20px 140px 72px 64px 64px 72px 64px 56px 80px 24px'
+// Column grid template — responsive, shared between header and rows
+type BreakpointKey = 'base' | 'sm' | 'md' | 'lg'
+type VisibleCol = 'drag' | 'asset' | 'price' | 'change1d' | 'change1w' | 'high52w' | 'ytd' | 'trend' | 'rs_momentum' | 'remove'
+
+const BREAKPOINT_COLS: Record<BreakpointKey, { grid: string; cols: Set<VisibleCol> }> = {
+  base: { grid: '1fr 62px 54px 66px',                                          cols: new Set(['asset', 'price', 'change1d', 'rs_momentum']) },
+  sm:   { grid: '1fr 66px 58px 58px 70px 22px',                                cols: new Set(['asset', 'price', 'change1d', 'change1w', 'rs_momentum', 'remove']) },
+  md:   { grid: '120px 68px 58px 58px 66px 58px 54px 72px 22px',               cols: new Set(['asset', 'price', 'change1d', 'change1w', 'high52w', 'ytd', 'trend', 'rs_momentum', 'remove']) },
+  lg:   { grid: '20px 140px 72px 64px 64px 72px 64px 56px 80px 24px',          cols: new Set(['drag', 'asset', 'price', 'change1d', 'change1w', 'high52w', 'ytd', 'trend', 'rs_momentum', 'remove']) },
+}
+
+function useBreakpoint(): BreakpointKey {
+  const lg = useMediaQuery('(min-width: 1024px)')
+  const md = useMediaQuery('(min-width: 768px)')
+  const sm = useMediaQuery('(min-width: 640px)')
+  if (lg) return 'lg'
+  if (md) return 'md'
+  if (sm) return 'sm'
+  return 'base'
+}
 
 type SortCol = 'ticker' | 'price' | 'change1d' | 'change1w' | 'high52w' | 'ytd' | 'rs_momentum'
 
 // ─── SortableHeader ───────────────────────────────────────────────────────────
 function SortableHeader({
-  label, col, current, asc, onSort,
+  label, col, current, asc, onSort, visible = true,
 }: {
-  label: string; col: SortCol | null; current: SortCol; asc: boolean; onSort: (c: SortCol) => void
+  label: string; col: SortCol | null; current: SortCol; asc: boolean; onSort: (c: SortCol) => void; visible?: boolean
 }) {
+  if (!visible) return null
   if (!col) return <span className="text-[9px] text-zinc-700 uppercase tracking-wider font-medium">{label}</span>
   const active = current === col
   return (
@@ -386,7 +439,7 @@ function SectionHeader({
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="opacity-0 group-hover/hdr:opacity-100 transition-opacity text-zinc-600 hover:text-[#3B82F6]"
+          className="opacity-0 group-hover/hdr:opacity-100 lg:opacity-0 lg:group-hover/hdr:opacity-100 transition-opacity text-zinc-600 hover:text-[#3B82F6]"
         >
           <Plus size={11} />
         </button>
@@ -503,6 +556,9 @@ function TickerRow({
   row,
   isSelected,
   sortActive,
+  visibleCols,
+  gridCols,
+  isTouch,
   onSelect,
   onRemove,
   onHover,
@@ -511,12 +567,16 @@ function TickerRow({
   row:          RSRow
   isSelected:   boolean
   sortActive:   boolean
+  visibleCols:  Set<VisibleCol>
+  gridCols:     string
+  isTouch:      boolean
   onSelect:     (t: string) => void
   onRemove:     (t: string) => void
   onHover:      (row: RSRow | null) => void
   onCursorMove: (pos: { x: number; y: number } | null) => void
 }) {
   const dragControls = useDragControls()
+  const [expanded, setExpanded] = useState(false)
   const { candles } = row
 
   const change1d = candles.length >= 2
@@ -536,77 +596,159 @@ function TickerRow({
   const pctColor = (v: number | null) =>
     v === null ? 'text-zinc-600' : v >= 0 ? 'text-emerald-400' : 'text-rose-500'
 
+  const handleClick = () => {
+    if (isTouch) setExpanded(prev => !prev)
+    onSelect(row.ticker)
+  }
+
   return (
     <Reorder.Item
       value={row}
       dragListener={false}
       dragControls={dragControls}
-      className={[
-        'grid items-center px-3 py-[7px] border-b border-white/[0.03] cursor-pointer',
-        'hover:bg-white/[0.03] transition-all duration-100 select-none group',
-        isSelected
-          ? 'bg-blue-500/[0.06] border-l-2 border-l-blue-500 shadow-[inset_0_0_20px_rgba(59,130,246,0.05)]'
-          : 'border-l-2 border-l-transparent',
-      ].join(' ')}
-      style={{ gridTemplateColumns: ROW_COLS }}
-      onClick={() => onSelect(row.ticker)}
-      onMouseEnter={() => onHover(row)}
-      onMouseMove={e => onCursorMove({ x: e.clientX, y: e.clientY })}
-      onMouseLeave={() => { onHover(null); onCursorMove(null) }}
+      className="select-none group"
     >
-      {/* Drag handle — hidden when sort is active */}
       <div
-        className={`flex items-center justify-center cursor-grab active:cursor-grabbing transition-opacity
-          ${sortActive ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-60'}`}
-        onPointerDown={e => { e.preventDefault(); dragControls.start(e) }}
+        className={[
+          'grid items-center px-3 py-[7px] border-b border-white/[0.03] cursor-pointer',
+          'hover:bg-white/[0.03] transition-all duration-100',
+          isSelected
+            ? 'bg-blue-500/[0.06] border-l-2 border-l-blue-500 shadow-[inset_0_0_20px_rgba(59,130,246,0.05)]'
+            : 'border-l-2 border-l-transparent',
+        ].join(' ')}
+        style={{ gridTemplateColumns: gridCols }}
+        onClick={handleClick}
+        onMouseEnter={() => { if (!isTouch) onHover(row) }}
+        onMouseMove={e => { if (!isTouch) onCursorMove({ x: e.clientX, y: e.clientY }) }}
+        onMouseLeave={() => { if (!isTouch) { onHover(null); onCursorMove(null) } }}
       >
-        <GripVertical size={11} className="text-zinc-600" />
+        {/* Drag handle — hidden when sort is active or below lg */}
+        {visibleCols.has('drag') && (
+          <div
+            className={`flex items-center justify-center cursor-grab active:cursor-grabbing transition-opacity
+              ${sortActive ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-60'}`}
+            onPointerDown={e => { e.preventDefault(); dragControls.start(e) }}
+          >
+            <GripVertical size={11} className="text-zinc-600" />
+          </div>
+        )}
+
+        {/* Asset */}
+        <div className="min-w-0 pr-2">
+          <div className="text-white text-[11px] font-bold tracking-wide leading-tight">{row.ticker}</div>
+          {visibleCols.has('drag') && (
+            <div className="text-zinc-600 text-[9px] truncate leading-tight mt-0.5">{row.name}</div>
+          )}
+        </div>
+
+        {/* Price */}
+        <div className="font-mono text-[11px] text-zinc-200 tabular-nums">${row.price.toFixed(2)}</div>
+
+        {/* 1D% */}
+        <div className="pr-1">
+          <div className={`font-mono text-[10px] tabular-nums leading-none ${pctColor(change1d)}`}>{fmt(change1d)}</div>
+          <StrengthBar pct={change1d ?? 0} max={5} />
+        </div>
+
+        {/* 1W% */}
+        {visibleCols.has('change1w') && (
+          <div className="pr-1">
+            <div className={`font-mono text-[10px] tabular-nums leading-none ${pctColor(change1w)}`}>{fmt(change1w)}</div>
+            <StrengthBar pct={change1w ?? 0} max={10} />
+          </div>
+        )}
+
+        {/* 52W HI% */}
+        {visibleCols.has('high52w') && (
+          <div className="pr-1">
+            <div className={`font-mono text-[10px] tabular-nums leading-none ${pctColor(fromHigh)}`}>{fmt(fromHigh)}</div>
+            <StrengthBar pct={fromHigh} max={20} />
+          </div>
+        )}
+
+        {/* YTD% */}
+        {visibleCols.has('ytd') && (
+          <div className="pr-1">
+            <div className={`font-mono text-[10px] tabular-nums leading-none ${pctColor(ytd)}`}>{fmt(ytd)}</div>
+            <StrengthBar pct={ytd ?? 0} max={30} />
+          </div>
+        )}
+
+        {/* 5D Sparkline */}
+        {visibleCols.has('trend') && <PriceSparkline candles={candles} />}
+
+        {/* RS Momentum histogram */}
+        <RSHistogram values={row.rs_norm} slope5d={row.slope_5d} />
+
+        {/* Remove */}
+        {visibleCols.has('remove') && (
+          <button
+            onClick={e => { e.stopPropagation(); onRemove(row.ticker) }}
+            className="text-zinc-700 hover:text-rose-500 transition-colors text-sm leading-none opacity-0 group-hover:opacity-100"
+          >×</button>
+        )}
       </div>
 
-      {/* Asset */}
-      <div className="min-w-0 pr-2">
-        <div className="text-white text-[11px] font-bold tracking-wide leading-tight">{row.ticker}</div>
-        <div className="text-zinc-600 text-[9px] truncate leading-tight mt-0.5">{row.name}</div>
-      </div>
-
-      {/* Price */}
-      <div className="font-mono text-[11px] text-zinc-200 tabular-nums">${row.price.toFixed(2)}</div>
-
-      {/* 1D% */}
-      <div className="pr-1">
-        <div className={`font-mono text-[10px] tabular-nums leading-none ${pctColor(change1d)}`}>{fmt(change1d)}</div>
-        <StrengthBar pct={change1d ?? 0} max={5} />
-      </div>
-
-      {/* 1W% */}
-      <div className="pr-1">
-        <div className={`font-mono text-[10px] tabular-nums leading-none ${pctColor(change1w)}`}>{fmt(change1w)}</div>
-        <StrengthBar pct={change1w ?? 0} max={10} />
-      </div>
-
-      {/* 52W HI% */}
-      <div className="pr-1">
-        <div className={`font-mono text-[10px] tabular-nums leading-none ${pctColor(fromHigh)}`}>{fmt(fromHigh)}</div>
-        <StrengthBar pct={fromHigh} max={20} />
-      </div>
-
-      {/* YTD% */}
-      <div className="pr-1">
-        <div className={`font-mono text-[10px] tabular-nums leading-none ${pctColor(ytd)}`}>{fmt(ytd)}</div>
-        <StrengthBar pct={ytd ?? 0} max={30} />
-      </div>
-
-      {/* 5D Sparkline */}
-      <PriceSparkline candles={candles} />
-
-      {/* RS Momentum histogram */}
-      <RSHistogram values={row.rs_norm} slope5d={row.slope_5d} />
-
-      {/* Remove */}
-      <button
-        onClick={e => { e.stopPropagation(); onRemove(row.ticker) }}
-        className="text-zinc-700 hover:text-rose-500 transition-colors text-sm leading-none opacity-0 group-hover:opacity-100"
-      >×</button>
+      {/* Tap-to-expand detail panel (touch devices) */}
+      <AnimatePresence>
+        {expanded && isTouch && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden border-b border-white/[0.03] bg-white/[0.02]"
+          >
+            <div className="px-3 py-2">
+              <CandleChart candles={candles} height={120} />
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-zinc-600">1W%</span>
+                  <span className={`font-mono tabular-nums ${pctColor(change1w)}`}>{fmt(change1w)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-600">52W HI%</span>
+                  <span className={`font-mono tabular-nums ${pctColor(fromHigh)}`}>{fmt(fromHigh)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-600">YTD%</span>
+                  <span className={`font-mono tabular-nums ${pctColor(ytd)}`}>{fmt(ytd)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-600">RS Mom</span>
+                  <span className={`font-mono tabular-nums ${row.rs_momentum >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                    {row.rs_momentum >= 0 ? '+' : ''}{row.rs_momentum.toFixed(2)}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-600">RS Strength</span>
+                  <span className={`font-mono tabular-nums ${row.rs_strength >= 100 ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                    {row.rs_strength.toFixed(1)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-600">Rank</span>
+                  <span className="font-mono tabular-nums text-zinc-400">#{row.rank}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  onClick={e => { e.stopPropagation(); onSelect(row.ticker) }}
+                  className="text-[9px] text-blue-400 border border-blue-500/30 rounded px-2 py-1 hover:bg-blue-500/10 transition-colors"
+                >
+                  View Holdings
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); onRemove(row.ticker) }}
+                  className="text-[9px] text-rose-400 border border-rose-500/30 rounded px-2 py-1 hover:bg-rose-500/10 transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Reorder.Item>
   )
 }
@@ -617,6 +759,8 @@ function TickerRow({
 function RRGChart({ data, onSelect }: { data: RSRow[]; onSelect: (ticker: string) => void }) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const isTouch = useIsTouchDevice()
 
   const W = 420, H = 300, pad = 48
   const allX = data.map(d => d.rs_strength)
@@ -639,8 +783,9 @@ function RRGChart({ data, onSelect }: { data: RSRow[]; onSelect: (ticker: string
 
   return (
     <div className="relative w-full">
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible"
-        onMouseLeave={() => { setHovered(null); setTooltip(null) }}>
+      <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible"
+        onMouseLeave={() => { if (!isTouch) { setHovered(null); setTooltip(null) } }}
+        onClick={e => { if (isTouch && e.target === svgRef.current) { setHovered(null); setTooltip(null) } }}>
         <rect x={axisX} y={pad}   width={W - pad - axisX} height={axisY - pad}       fill="#4ADE80" opacity={0.06} />
         <rect x={pad}   y={pad}   width={axisX - pad}     height={axisY - pad}       fill="#FACC15" opacity={0.06} />
         <rect x={pad}   y={axisY} width={axisX - pad}     height={H - pad - axisY}   fill="#F87171" opacity={0.06} />
@@ -680,9 +825,21 @@ function RRGChart({ data, onSelect }: { data: RSRow[]; onSelect: (ticker: string
           const r = isHov ? 7 : isTop3 ? 5.5 : 4
           return (
             <g key={row.ticker} style={{ cursor: 'pointer' }}
-              onMouseEnter={e => { setHovered(row.ticker); setTooltip({ x: e.clientX, y: e.clientY }) }}
-              onMouseMove={e  => setTooltip({ x: e.clientX, y: e.clientY })}
-              onClick={() => onSelect(row.ticker)}
+              onMouseEnter={e => { if (!isTouch) { setHovered(row.ticker); setTooltip({ x: e.clientX, y: e.clientY }) } }}
+              onMouseMove={e  => { if (!isTouch) setTooltip({ x: e.clientX, y: e.clientY }) }}
+              onClick={() => {
+                if (isTouch) {
+                  // Toggle tooltip on tap; second tap on same dot → drill down
+                  if (hovered === row.ticker) { onSelect(row.ticker); setHovered(null); setTooltip(null) }
+                  else {
+                    const rect = svgRef.current?.getBoundingClientRect()
+                    if (rect) setTooltip({ x: rect.left + (toX(row.rs_strength) / W) * rect.width, y: rect.top + (toY(row.rs_momentum) / H) * rect.height })
+                    setHovered(row.ticker)
+                  }
+                } else {
+                  onSelect(row.ticker)
+                }
+              }}
             >
               {isHov && <circle cx={x} cy={y} r={r+5} fill={color} opacity={0.15} />}
               <circle cx={x} cy={y} r={r} fill={color} opacity={isHov ? 1 : 0.85} />
@@ -743,7 +900,7 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 16 }}
-      className="fixed bottom-6 right-6 z-50 bg-[#141414] border border-white/[0.08] text-white text-[11px] px-4 py-3 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-sm"
+      className="fixed bottom-14 right-4 left-4 sm:left-auto sm:right-6 sm:bottom-6 z-50 bg-[#141414] border border-white/[0.08] text-white text-[11px] px-4 py-3 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-sm text-center sm:text-left"
     >
       {message}
     </motion.div>
@@ -923,7 +1080,7 @@ Rules:
                   <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-3 font-medium">
                     Already Covered ({covered.length})
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {covered.map(t => (
                       <div key={t.theme} className="bg-[#111] border border-[#1A1A1A] rounded-lg px-3 py-2 flex items-center gap-2">
                         <span className="text-[9px] font-mono bg-green-500/15 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded flex-shrink-0">
@@ -1438,6 +1595,13 @@ export default function RSDashboard() {
   const [hoveredRS, setHoveredRS] = useState<RSRow | null>(null)
   const [cursor,    setCursor]    = useState<{ x: number; y: number } | null>(null)
 
+  // Responsive
+  const breakpoint = useBreakpoint()
+  const isDesktop  = breakpoint === 'lg'
+  const isTouch    = useIsTouchDevice()
+  const { grid: gridCols, cols: visibleCols } = BREAKPOINT_COLS[breakpoint]
+  const [mobilePanel, setMobilePanel] = useState<'table' | 'rrg' | 'holdings'>('table')
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const tickers  = groups[activeGroup] ?? []
 
@@ -1599,69 +1763,101 @@ export default function RSDashboard() {
 
   const activeETFRow = data.find(r => r.ticker === activeSector) ?? null
 
+  const showTable = isDesktop || mobilePanel === 'table'
+  const showRRG   = isDesktop || mobilePanel === 'rrg'
+  const showHoldings = !isDesktop && mobilePanel === 'holdings'
+
   return (
-    <div className="flex-1 flex flex-col bg-[#0A0A0A] text-white font-sans">
+    <div className="flex-1 flex flex-col bg-[#0A0A0A] text-white font-sans overflow-hidden">
 
       {/* ── AI Market Summary banner ── */}
       <AIMarketSummary data={data} onSelectTicker={handleCardClick} />
 
-      <div className="flex">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
 
-      {/* ── Left: Sectioned Row Table (60%) ── */}
-      <div className="flex flex-col border-r border-white/[0.06]" style={{ width: '60%' }}>
+      {/* ── Left: Sectioned Row Table ── */}
+      {showTable && (
+      <div className="flex flex-col w-full lg:w-[60%] lg:border-r border-white/[0.06] overflow-hidden">
 
-        {/* Group tabs */}
-        <div className="flex-shrink-0 flex items-center border-b border-white/[0.06] bg-[#0A0A0A] px-4 pt-1.5">
-          <div className="flex items-center gap-0.5 overflow-x-auto min-w-0 flex-1 scrollbar-none">
-            {Object.keys(groups).map(name => (
-              <div key={name} className="flex items-center flex-shrink-0">
-                <button
-                  onClick={() => setActiveGroup(name)}
-                  className={`px-3 py-2 text-[11px] font-medium transition-all relative ${
-                    activeGroup === name
-                      ? 'text-white'
-                      : 'text-zinc-600 hover:text-zinc-400'
-                  }`}
-                >
-                  {name}
-                  <span className={`ml-1.5 text-[9px] tabular-nums ${activeGroup === name ? 'text-zinc-500' : 'text-zinc-700'}`}>
-                    {(groups[name] ?? []).length}
-                  </span>
-                  {activeGroup === name && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute bottom-0 left-1 right-1 h-[2px] bg-[#3B82F6] rounded-full"
-                      transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
-                    />
-                  )}
-                </button>
-                {activeGroup === name && name !== 'Sector ETFs' && (
-                  <button onClick={() => handleDeleteGroup(name)}
-                    className="text-zinc-700 hover:text-rose-500 transition-colors -ml-1 mr-1">
-                    <Trash2 size={10} />
+        {/* Group tabs — Row 1 */}
+        <div className="flex-shrink-0 border-b border-white/[0.06] bg-[#0A0A0A]">
+          <div className="flex items-center px-3 sm:px-4 pt-1.5 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-0.5 min-w-0 flex-1">
+              {Object.keys(groups).map(name => (
+                <div key={name} className="flex items-center flex-shrink-0">
+                  <button
+                    onClick={() => setActiveGroup(name)}
+                    className={`px-2 sm:px-3 py-2 text-[11px] font-medium transition-all relative ${
+                      activeGroup === name
+                        ? 'text-white'
+                        : 'text-zinc-600 hover:text-zinc-400'
+                    }`}
+                  >
+                    {name}
+                    <span className={`ml-1 sm:ml-1.5 text-[9px] tabular-nums ${activeGroup === name ? 'text-zinc-500' : 'text-zinc-700'}`}>
+                      {(groups[name] ?? []).length}
+                    </span>
+                    {activeGroup === name && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute bottom-0 left-1 right-1 h-[2px] bg-[#3B82F6] rounded-full"
+                        transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+                      />
+                    )}
                   </button>
-                )}
-              </div>
-            ))}
-            {showNewGroup ? (
-              <div className="flex items-center gap-1 flex-shrink-0 px-1 pb-1">
-                <input autoFocus value={newGroupName}
-                  onChange={e => setNewGroupName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleCreateGroup(); if (e.key === 'Escape') setShowNewGroup(false) }}
-                  placeholder="Group name…"
-                  className="w-24 bg-[#111] text-white text-[10px] px-2 py-1 rounded border border-[#3B82F6] focus:outline-none placeholder-[#333]" />
-                <button onClick={handleCreateGroup} className="text-[#3B82F6] hover:text-white transition-colors">
+                  {activeGroup === name && name !== 'Sector ETFs' && (
+                    <button onClick={() => handleDeleteGroup(name)}
+                      className="text-zinc-700 hover:text-rose-500 transition-colors -ml-1 mr-1">
+                      <Trash2 size={10} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {showNewGroup ? (
+                <div className="flex items-center gap-1 flex-shrink-0 px-1 pb-1">
+                  <input autoFocus value={newGroupName}
+                    onChange={e => setNewGroupName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleCreateGroup(); if (e.key === 'Escape') setShowNewGroup(false) }}
+                    placeholder="Group name…"
+                    className="w-24 bg-[#111] text-white text-[10px] px-2 py-1 rounded border border-[#3B82F6] focus:outline-none placeholder-[#333]" />
+                  <button onClick={handleCreateGroup} className="text-[#3B82F6] hover:text-white transition-colors">
+                    <Plus size={12} />
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setShowNewGroup(true)}
+                  className="flex-shrink-0 px-2 py-2 text-zinc-700 hover:text-[#3B82F6] transition-colors">
                   <Plus size={12} />
                 </button>
-              </div>
-            ) : (
-              <button onClick={() => setShowNewGroup(true)}
-                className="flex-shrink-0 px-2 py-2 text-zinc-700 hover:text-[#3B82F6] transition-colors">
-                <Plus size={12} />
+              )}
+            </div>
+            {/* Desktop-only action bar (inline with tabs) */}
+            <div className="hidden lg:flex items-center gap-2.5 flex-shrink-0 pl-3 pb-1">
+              {error && <span className="text-rose-500 text-[10px]">{error}</span>}
+              {activeSector && (
+                <span className="text-[10px] text-blue-400/70 flex items-center gap-1.5 bg-blue-500/[0.08] border border-blue-500/20 rounded-full px-2 py-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500/60" />
+                  {activeSector}
+                  <button onClick={() => { setActiveSector(null); setHoldingData([]) }}
+                    className="text-zinc-600 hover:text-zinc-300 ml-0.5 leading-none">×</button>
+                </span>
+              )}
+              <button
+                onClick={() => setAuditOpen(true)}
+                title="Audit My Coverage"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-purple-500/20 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/30 transition-all text-[10px] font-medium"
+              >
+                <Sparkles size={10} />
+                Audit
               </button>
-            )}
+              <button onClick={() => load(tickers, true)} disabled={loading}
+                className="text-zinc-600 hover:text-white transition-colors disabled:opacity-30 p-1">
+                <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2.5 flex-shrink-0 pl-3 pb-1">
+          {/* Mobile action bar — Row 2 */}
+          <div className="flex lg:hidden items-center gap-2 px-3 py-1.5 border-t border-white/[0.04]">
             {error && <span className="text-rose-500 text-[10px]">{error}</span>}
             {activeSector && (
               <span className="text-[10px] text-blue-400/70 flex items-center gap-1.5 bg-blue-500/[0.08] border border-blue-500/20 rounded-full px-2 py-0.5">
@@ -1671,13 +1867,13 @@ export default function RSDashboard() {
                   className="text-zinc-600 hover:text-zinc-300 ml-0.5 leading-none">×</button>
               </span>
             )}
+            <div className="flex-1" />
             <button
               onClick={() => setAuditOpen(true)}
-              title="Audit My Coverage"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-purple-500/20 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/30 transition-all text-[10px] font-medium"
+              className="flex items-center gap-1 px-2 py-1 rounded-md border border-purple-500/20 text-purple-400 hover:bg-purple-500/10 transition-all text-[10px] font-medium"
             >
               <Sparkles size={10} />
-              Audit
+              <span className="hidden sm:inline">Audit</span>
             </button>
             <button onClick={() => load(tickers, true)} disabled={loading}
               className="text-zinc-600 hover:text-white transition-colors disabled:opacity-30 p-1">
@@ -1696,18 +1892,18 @@ export default function RSDashboard() {
               {/* Sticky column header with sortable labels */}
               <div
                 className="grid items-center px-3 py-2 bg-[#0A0A0A]/95 backdrop-blur-sm border-b border-white/[0.06] sticky top-0 z-10 flex-shrink-0"
-                style={{ gridTemplateColumns: ROW_COLS }}
+                style={{ gridTemplateColumns: gridCols }}
               >
-                <span />
+                {visibleCols.has('drag') && <span />}
                 <SortableHeader label="Asset"    col="ticker"      current={sortCol} asc={sortAsc} onSort={handleSort} />
                 <SortableHeader label="Price"    col="price"       current={sortCol} asc={sortAsc} onSort={handleSort} />
                 <SortableHeader label="1D%"      col="change1d"    current={sortCol} asc={sortAsc} onSort={handleSort} />
-                <SortableHeader label="1W%"      col="change1w"    current={sortCol} asc={sortAsc} onSort={handleSort} />
-                <SortableHeader label="52W HI%"  col="high52w"     current={sortCol} asc={sortAsc} onSort={handleSort} />
-                <SortableHeader label="YTD%"     col="ytd"         current={sortCol} asc={sortAsc} onSort={handleSort} />
-                <SortableHeader label="5D Trend" col={null}        current={sortCol} asc={sortAsc} onSort={handleSort} />
+                <SortableHeader label="1W%"      col="change1w"    current={sortCol} asc={sortAsc} onSort={handleSort} visible={visibleCols.has('change1w')} />
+                <SortableHeader label="52W HI%"  col="high52w"     current={sortCol} asc={sortAsc} onSort={handleSort} visible={visibleCols.has('high52w')} />
+                <SortableHeader label="YTD%"     col="ytd"         current={sortCol} asc={sortAsc} onSort={handleSort} visible={visibleCols.has('ytd')} />
+                <SortableHeader label="5D Trend" col={null}        current={sortCol} asc={sortAsc} onSort={handleSort} visible={visibleCols.has('trend')} />
                 <SortableHeader label="RS Mom"   col="rs_momentum" current={sortCol} asc={sortAsc} onSort={handleSort} />
-                <span />
+                {visibleCols.has('remove') && <span />}
               </div>
 
               {/* Three sections */}
@@ -1736,6 +1932,9 @@ export default function RSDashboard() {
                             row={row}
                             isSelected={activeSector === row.ticker}
                             sortActive={sortActive}
+                            visibleCols={visibleCols}
+                            gridCols={gridCols}
+                            isTouch={isTouch}
                             onSelect={handleCardClick}
                             onRemove={handleRemove}
                             onHover={setHoveredRS}
@@ -1751,9 +1950,10 @@ export default function RSDashboard() {
           )}
         </div>
       </div>
+      )}
 
-      {/* ── Cursor-following chart popup ── */}
-      {hoveredRS && cursor && (
+      {/* ── Cursor-following chart popup (desktop only) ── */}
+      {hoveredRS && cursor && !isTouch && (
         <CursorChart row={hoveredRS} cursor={cursor} />
       )}
 
@@ -1774,8 +1974,9 @@ export default function RSDashboard() {
         {toast && <Toast message={toast} onDone={() => setToast(null)} />}
       </AnimatePresence>
 
-      {/* ── Right: RRG + Holdings Drill-down (40%) ── */}
-      <div className="flex flex-col" style={{ width: '40%' }}>
+      {/* ── Right: RRG + Holdings Drill-down ── */}
+      {showRRG && (
+      <div className="flex flex-col w-full lg:w-[40%] overflow-y-auto">
 
         {/* RRG */}
         <div className="flex-shrink-0 border-b border-white/[0.06] p-4">
@@ -1797,8 +1998,53 @@ export default function RSDashboard() {
           />
         </div>
       </div>
+      )}
 
       </div>
+
+      {/* ── Mobile Holdings panel ── */}
+      {showHoldings && (
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <HoldingsPanel
+            etfRow={activeETFRow}
+            holdingRows={holdingData}
+            loading={loadingHoldings}
+          />
+        </div>
+      )}
+
+      {/* ── Mobile bottom tab bar ── */}
+      {!isDesktop && (
+        <div className="flex-shrink-0 flex border-t border-white/[0.06] bg-[#0A0A0A]/95 backdrop-blur-sm">
+          <button
+            onClick={() => setMobilePanel('table')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium transition-colors ${
+              mobilePanel === 'table' ? 'text-[#3B82F6]' : 'text-zinc-600'
+            }`}
+          >
+            <TableProperties size={14} />
+            Table
+          </button>
+          <button
+            onClick={() => setMobilePanel('rrg')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium transition-colors ${
+              mobilePanel === 'rrg' ? 'text-[#3B82F6]' : 'text-zinc-600'
+            }`}
+          >
+            <BarChart3 size={14} />
+            RRG
+          </button>
+          <button
+            onClick={() => setMobilePanel('holdings')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium transition-colors ${
+              mobilePanel === 'holdings' ? 'text-[#3B82F6]' : 'text-zinc-600'
+            }`}
+          >
+            <LayoutGrid size={14} />
+            Holdings
+          </button>
+        </div>
+      )}
     </div>
   )
 }

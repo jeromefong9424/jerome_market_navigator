@@ -48,3 +48,8 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
   animation: shimmer-sweep 2s infinite;
 }
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  button, [role="button"] { min-height: 36px; }
+}

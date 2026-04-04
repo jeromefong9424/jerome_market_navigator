@@ -5,7 +5,7 @@ export default function App() {
   return (
     <div className="flex flex-col bg-[#0A0A0C] text-white min-h-screen">
       <Header />
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden">
         <RSDashboard />
       </div>
     </div>
