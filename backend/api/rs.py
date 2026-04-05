@@ -134,6 +134,22 @@ def _compute_rs(symbols_to_fetch: list[str], cache: dict) -> list[dict]:
                 except (KeyError, TypeError):
                     continue
 
+            # Performance metrics from full 3mo window
+            all_prices = closes_all[ticker].dropna()
+            n_all = len(all_prices)
+            current_close = float(all_prices.iloc[-1])
+            pct_1w = round(((current_close / float(all_prices.iloc[-6])) - 1) * 100, 2) if n_all >= 6 else None
+            pct_1m = round(((current_close / float(all_prices.iloc[-22])) - 1) * 100, 2) if n_all >= 22 else None
+            high52w = float(all_prices.iloc[-252:].max()) if n_all >= 252 else float(all_prices.max())
+            from_high_pct = round(((current_close / high52w) - 1) * 100, 2)
+            current_year = date.today().year
+            ytd_start = None
+            for i, idx in enumerate(all_prices.index):
+                if idx.year == current_year:
+                    ytd_start = float(all_prices.iloc[i])
+                    break
+            ytd_pct = round(((current_close / ytd_start) - 1) * 100, 2) if ytd_start else None
+
             results.append({
                 "ticker":      ticker,
                 "price":       round(float(prices.iloc[-1]), 2),
@@ -144,6 +160,10 @@ def _compute_rs(symbols_to_fetch: list[str], cache: dict) -> list[dict]:
                 "rs_momentum": round(rs_mom, 2),
                 "tail":        tail,
                 "candles":     candles,
+                "pct_1w":      pct_1w,
+                "pct_1m":      pct_1m,
+                "ytd_pct":     ytd_pct,
+                "from_high_pct": from_high_pct,
             })
         except Exception:
             continue

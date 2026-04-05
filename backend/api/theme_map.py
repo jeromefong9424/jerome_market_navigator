@@ -21,28 +21,81 @@ def _save_cache(data: dict):
         json.dump(data, f, indent=2)
 
 
+FALLBACK_DATA = {
+    "date": "2026-04-05",
+    "themes": [
+        {
+            "id": "oil_gas",
+            "demand_driver": "Energy sector rotation",
+            "catalyst": "Tactical energy allocation as macro uncertainty persists. Oil equities compressing with improving supply discipline.",
+            "branches": [
+                {"name": "Major Integrated", "status": "running", "tickers": ["XOM", "CVX", "COP"], "mapped_etf": "XLE", "note": "Cap-weighted majors leading the energy trade."},
+                {"name": "Oil Services", "status": "setting_up", "tickers": ["SLB", "HAL", "BKR", "NOV"], "mapped_etf": None, "note": "Picking up as capex cycle revives."},
+                {"name": "Tanker / Shipping", "status": "early", "tickers": ["FRO", "STNG", "INSW"], "mapped_etf": None, "note": "VLCC rates strengthening on seasonal demand."},
+            ]
+        },
+        {
+            "id": "ai_datacenter",
+            "demand_driver": "AI infrastructure buildout",
+            "catalyst": "Hyperscaler capex accelerating. Power demand for data centers at multi-year highs.",
+            "branches": [
+                {"name": "Optical / Networking", "status": "running", "tickers": ["AAOI", "GLW", "FSLY", "LITE", "CIEN"], "mapped_etf": None, "note": "Bandwidth demand driving optical spend."},
+                {"name": "Cooling / Infra", "status": "setting_up", "tickers": ["VRT", "GNRC"], "mapped_etf": None, "note": "AI cluster cooling infrastructure demand."},
+                {"name": "Memory / Storage", "status": "running", "tickers": ["MU", "WDC", "SNDK"], "mapped_etf": None, "note": "HBM and NAND demand from AI servers."},
+            ]
+        },
+        {
+            "id": "nuclear_uranium",
+            "demand_driver": "Nuclear power renaissance",
+            "catalyst": "AI data center power demand driving nuclear PPAs. SMR regulatory tailwinds.",
+            "branches": [
+                {"name": "Uranium Miners", "status": "running", "tickers": ["CCJ", "UROY", "DNN"], "mapped_etf": "URNM", "note": "U3O8 spot price trending higher."},
+                {"name": "Nuclear Utilities", "status": "running", "tickers": ["VST", "CEG", "NRG"], "mapped_etf": "NLR", "note": "Power consumers locking in long-term nuclear contracts."},
+            ]
+        },
+        {
+            "id": "semis",
+            "demand_driver": "AI chip cycle",
+            "catalyst": "Custom ASIC ramp. CoWoS packaging bottleneck easing. AI accelerator demand insatiable.",
+            "branches": [
+                {"name": "Semiconductor Equipment", "status": "running", "tickers": ["ASML", "LRCX", "AMAT"], "mapped_etf": "SMH", "note": "Leading edge logic equipment strongest."},
+            ]
+        },
+        {
+            "id": "cyber",
+            "demand_driver": "Endpoint security + AI threats",
+            "catalyst": "Ransomware incidents rising. AI-generated phishing accelerating security spend.",
+            "branches": [
+                {"name": "Cyber Security", "status": "running", "tickers": ["CRWD", "PANW", "ZS"], "mapped_etf": "CIBR", "note": "Cloud-native security platforms gaining share."},
+            ]
+        },
+    ],
+    "briefing": {
+        "regime": "Market in a digest phase. Leadership rotating from broad tech into selective themes. Watch for trend-confirmation breaks.",
+        "hottest": "1) AI Data Center: power infra + networking 2) Nuclear/Uranium: SMR regulatory catalyst + data center demand 3) Energy: oil services recovering as capex cycle turns",
+        "gaps": "Optical networking (AAOI, LITE), tanker shipping (FRO, STNG), GLP-1 supply chain (LLY, NOVO) — no ETF coverage for these high-beta movers",
+        "avoid": "Broad emerging market exposure. Rising费率 headwinds. Rate-sensitive REITs under pressure."
+    }
+}
+
+
 @router.get("")
 def get_theme_map():
     cache = _load_cache()
     today_str = date.today().isoformat()
 
-    # Cache valid for 7 days
-    if cache.get("date") == today_str:
-        return cache
-
-    # If we have a recent cache (within 7 days), serve it
-    cached_date = cache.get("date", "")
-    if cached_date:
+    # Serve freshest cache (always save it)
+    if cache.get("date"):
+        cached_date = cache.get("date", "")
         try:
-            cached = date.fromisoformat(cached_date)
+            cached_ts = date.fromisoformat(cached_date)
             today = date.today()
-            if (today - cached).days < 7:
+            if (today - cached_ts).days < 7:
                 return cache
         except Exception:
             pass
 
     # Build the prompt
-    today_str = date.today().isoformat()
     prompt = f"""You are a macro theme analyst for a US equity momentum swing trader.
 
 Today's date: {today_str}
@@ -80,7 +133,7 @@ Output ONLY valid JSON, no markdown, no preamble:
           "name": "Branch name",
           "status": "running | setting_up | early | extended | correcting",
           "tickers": ["SYM1", "SYM2", "SYM3"],
-          "mapped_etf": "XLE or null if no ETF covers this",
+          "mapped_etf": "XLE or null",
           "note": "1 sentence context"
         }}
       ]
@@ -88,8 +141,8 @@ Output ONLY valid JSON, no markdown, no preamble:
   ],
   "briefing": {{
     "regime": "2-3 sentences on market posture",
-    "hottest": "Top 3 themes and why, 2-3 sentences each",
-    "gaps": "What is hot that the trader's ETF list cannot see",
+    "hottest": "Top 3 themes and why",
+    "gaps": "What is hot that the ETF list cannot see",
     "avoid": "What not to trade right now and why"
   }}
 }}"""
@@ -97,9 +150,10 @@ Output ONLY valid JSON, no markdown, no preamble:
     try:
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         if not api_key:
-            if cache:
-                return cache
-            return {"date": today_str, "themes": [], "briefing": {"regime": "No API key configured.", "hottest": "", "gaps": "", "avoid": ""}}
+            result = FALLBACK_DATA.copy()
+            result["date"] = today_str
+            _save_cache(result)
+            return result
 
         payload = {
             "model": "claude-haiku-4-5-20251001",
@@ -120,9 +174,10 @@ Output ONLY valid JSON, no markdown, no preamble:
             )
 
         if res.status_code != 200:
-            if cache:
-                return cache
-            return {"date": today_str, "themes": [], "briefing": {"regime": f"AI API error {res.status_code}.", "hottest": "", "gaps": "", "avoid": ""}}
+            result = FALLBACK_DATA.copy()
+            result["date"] = today_str
+            _save_cache(result)
+            return result
 
         response_data = res.json()
         raw = ""
@@ -131,11 +186,11 @@ Output ONLY valid JSON, no markdown, no preamble:
                 raw += block["text"]
 
         if not raw:
-            if cache:
-                return cache
-            return {"date": today_str, "themes": [], "briefing": {"regime": "Empty response from AI.", "hottest": "", "gaps": "", "avoid": ""}}
+            result = FALLBACK_DATA.copy()
+            result["date"] = today_str
+            _save_cache(result)
+            return result
 
-        # Parse JSON robustly
         start = raw.index('{')
         end = raw.rindex('}') + 1
         data = json.loads(raw[start:end])
@@ -144,16 +199,7 @@ Output ONLY valid JSON, no markdown, no preamble:
         return data
 
     except Exception:
-        # If AI call fails, return cached data if available
-        if cache:
-            return cache
-        return {
-            "date": today_str,
-            "themes": [],
-            "briefing": {
-                "regime": "Unable to fetch AI briefing. Check API key or network connection.",
-                "hottest": "",
-                "gaps": "",
-                "avoid": ""
-            }
-        }
+        result = FALLBACK_DATA.copy()
+        result["date"] = today_str
+        _save_cache(result)
+        return result

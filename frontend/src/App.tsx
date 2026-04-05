@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react'
 import RegimeBanner from './components/RegimeBanner'
 import ThemeSidebar from './components/ThemeSidebar'
-import Top10LeadersTable from './components/Top10LeadersTable'
+import ThemeETFTable from './components/ThemeETFTable'
 import SupplyChainTab from './components/SupplyChainTab'
 import AIPanel from './components/AIPanel'
-import RSDashboard from './pages/RSDashboard'
+import ETFDetailPanel from './components/ETFDetailPanel'
 import { fetchRS, fetchRegime } from './api'
-
-type ViewMode = 'all_etfs' | 'themes'
+import { useStore } from './store'
+import themeGroups from './config/themeGroups.json'
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('themes')
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null)
-  const [themeTab, setThemeTab] = useState<'leaders' | 'supply'>('leaders')
-  const [rsData, setRsData] = useState<{ ticker: string; rs_slope: number; rs_strength: number; rs_momentum: number }[]>([])
+  const [themeTab, setThemeTab] = useState<'etfs' | 'supply'>('etfs')
+  const selectedTicker = useStore(s => s.selectedTicker)
+  const setSelectedTicker = useStore(s => s.setSelectedTicker)
+  const [rsData, setRsData] = useState<{ ticker: string; rs_slope: number; rs_strength: number; rs_momentum: number; price?: number; pct_1w?: number | null; pct_1m?: number | null; ytd_pct?: number | null; from_high_pct?: number | null }[]>([])
   const [livePrices, setLivePrices] = useState<{ SPY: number; QQQ: number } | null>(null)
   const [wti, setWti] = useState<number | null>(null)
 
@@ -91,28 +92,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* View toggle */}
-        <div className="flex items-center rounded-md border border-white/10 overflow-hidden flex-shrink-0">
-          <button
-            onClick={() => setViewMode('themes')}
-            className={`px-3 py-1.5 text-[10px] font-semibold transition-colors ${
-              viewMode === 'themes' ? 'bg-[#1c2129] text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
-            }`}
-          >
-            Themes
-          </button>
-          <button
-            onClick={() => setViewMode('all_etfs')}
-            className={`px-3 py-1.5 text-[10px] font-semibold transition-colors ${
-              viewMode === 'all_etfs' ? 'bg-[#1c2129] text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
-            }`}
-          >
-            All ETFs
-          </button>
-        </div>
       </div>
 
       {/* ── Regime strip ── */}
@@ -123,65 +102,71 @@ export default function App() {
       {/* ── Main content ── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Left: Theme sidebar (themes view only) */}
-        {viewMode === 'themes' && (
-          <ThemeSidebar
-            rsData={rsData}
-            selectedTheme={selectedTheme}
-            onSelectTheme={id => { setSelectedTheme(id); setThemeTab('leaders') }}
-          />
-        )}
+        {/* Left: Theme sidebar */}
+        <ThemeSidebar
+          rsData={rsData}
+          selectedTheme={selectedTheme}
+          onSelectTheme={id => { setSelectedTheme(id); setThemeTab('etfs') }}
+        />
 
         {/* Center content */}
         <div className="flex-1 flex flex-col overflow-hidden bg-[#0d1117]">
-          {viewMode === 'themes' ? (
-            selectedTheme ? (
-              <>
-                {/* Theme detail header + tabs */}
-                <div className="flex-shrink-0 border-b border-white/5 px-4 py-2 flex items-center gap-4">
-                  <span className="text-[12px] font-semibold text-zinc-200">
-                    {selectedTheme.replace(/_/g, ' ').toUpperCase()}
-                  </span>
-                  <div className="flex items-center rounded-md border border-white/10 overflow-hidden">
-                    <button
-                      onClick={() => setThemeTab('leaders')}
-                      className={`px-3 py-1 text-[10px] font-semibold transition-colors ${
-                        themeTab === 'leaders' ? 'bg-[#1c2129] text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
-                      }`}
-                    >
-                      Top 10 + Chart
-                    </button>
-                    <button
-                      onClick={() => setThemeTab('supply')}
-                      className={`px-3 py-1 text-[10px] font-semibold transition-colors ${
-                        themeTab === 'supply' ? 'bg-[#1c2129] text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
-                      }`}
-                    >
-                      Supply Chain
-                    </button>
-                  </div>
+          {selectedTicker ? (
+            /* ETF detail view */
+            <div className="flex-1 overflow-y-auto">
+              <ETFDetailPanel
+                ticker={selectedTicker}
+                onBack={() => setSelectedTicker(null)}
+              />
+            </div>
+          ) : selectedTheme ? (
+            <>
+              {/* Theme detail header + tabs */}
+              <div className="flex-shrink-0 border-b border-white/5 px-4 py-2 flex items-center gap-4">
+                <span className="text-[12px] font-semibold text-zinc-200">
+                  {selectedTheme.replace(/_/g, ' ').toUpperCase()}
+                </span>
+                <div className="flex items-center rounded-md border border-white/10 overflow-hidden">
+                  <button
+                    onClick={() => setThemeTab('etfs')}
+                    className={`px-3 py-1 text-[10px] font-semibold transition-colors ${
+                      themeTab === 'etfs' ? 'bg-[#1c2129] text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
+                    }`}
+                  >
+                    ETF List
+                  </button>
+                  <button
+                    onClick={() => setThemeTab('supply')}
+                    className={`px-3 py-1 text-[10px] font-semibold transition-colors ${
+                      themeTab === 'supply' ? 'bg-[#1c2129] text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
+                    }`}
+                  >
+                    Supply Chain
+                  </button>
                 </div>
-
-                {/* Tab content */}
-                <div className="flex-1 overflow-y-auto">
-                  {themeTab === 'leaders' ? (
-                    <Top10LeadersTable
-                      themeId={selectedTheme}
-                    />
-                  ) : (
-                    <SupplyChainTab selectedThemeId={selectedTheme} />
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-600 text-xs gap-3">
-                <div className="text-zinc-500">← Select a theme from the sidebar</div>
               </div>
-            )
+
+              {/* Tab content */}
+              <div className="flex-1 overflow-y-auto">
+                {themeTab === 'etfs' ? (
+                  (() => {
+                    const group = themeGroups.themes.find(g => g.id === selectedTheme)
+                    return (
+                      <ThemeETFTable
+                        themeName={group?.name ?? selectedTheme ?? ''}
+                        etfTickers={group?.etfs ?? []}
+                        rsData={rsData}
+                      />
+                    )
+                  })()
+                ) : (
+                  <SupplyChainTab selectedThemeId={selectedTheme} />
+                )}
+              </div>
+            </>
           ) : (
-            /* All ETFs view — use existing RSDashboard */
-            <div className="flex-1 overflow-hidden">
-              <RSDashboard />
+            <div className="flex flex-col items-center justify-center h-full text-zinc-600 text-xs gap-3">
+              <div className="text-zinc-500">Select an ETF from the sidebar</div>
             </div>
           )}
         </div>

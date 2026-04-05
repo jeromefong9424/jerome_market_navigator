@@ -61,19 +61,20 @@ def _compute_stock_rs(stock_ticker: str, spy_closes: np.ndarray) -> dict | None:
         volumes = hist["Volume"].values
         close_dates = hist.index
 
-        # Align with SPY window
-        spy_dates = [d.strftime("%Y-%m-%d") for d in close_dates]
-        spy_map = {d: v for d, v in zip([d.strftime("%Y-%m-%d") for d in close_dates], spy_closes) if d in [d.strftime("%Y-%m-%d") for d in close_dates]}
+        # Align with SPY window — build a date->price map from SPY
+        spy_map: dict[str, float] = {}
+        for i, d in enumerate(close_dates):
+            if i < len(spy_closes):
+                spy_map[d.strftime("%Y-%m-%d")] = float(spy_closes[i])
 
-        # Get SPY values aligned
+        # Get aligned arrays
         aligned_spy = []
         aligned_stock = []
         for d, c in zip(close_dates, closes):
             ds = d.strftime("%Y-%m-%d")
             if ds in spy_map:
                 aligned_spy.append(spy_map[ds])
-                aligned_spy.append
-                aligned_stock.append(c)
+                aligned_stock.append(float(c))
 
         if len(aligned_stock) < 10:
             return None
@@ -186,7 +187,7 @@ def get_theme_leaders(theme_id: str):
 
     # Get SPY data for RS computation
     spy_raw = yf.download("SPY", period="3mo", interval="1d", auto_adjust=True, progress=False)
-    spy_closes = spy_raw["Close"].dropna().values
+    spy_closes = spy_raw["Close"].dropna().iloc[:, 0].values
 
     all_tickers: list[str] = list(etfs)
     seen: set[str] = set()
