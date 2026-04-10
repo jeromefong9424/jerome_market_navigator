@@ -21,12 +21,13 @@ export default function App() {
   // Load RS data for theme sidebar
   useEffect(() => {
     const allTickers = [
-      'XLK', 'XLE', 'XLF', 'XLV', 'XLI', 'XLY', 'XLP', 'XLU', 'XLB', 'XLRE',
-      'XOP', 'ITA', 'XHB', 'ITB', 'XRT', 'IBB', 'SMH', 'GDX', 'GDXJ', 'GLD',
-      'SLV', 'COPX', 'REMX', 'MOO', 'PHO', 'JETS', 'XBI', 'FCG', 'AIQ', 'DTCR',
-      'CLOU', 'WCLD', 'ARKW', 'BOTZ', 'HUMN', 'UFO', 'ARKX', 'SHLD', 'CIBR',
-      'HACK', 'URNM', 'NLR', 'GRID', 'ICLN', 'LIT', 'DRIV', 'PAVE', 'FINX',
-      'IBIT', 'BKCH', 'ARKG', 'ARKK', 'ARKQ', 'QQQ', 'IWM', 'SPY',
+      'XLK', 'XLE', 'XLF', 'XLV', 'XLI', 'XLY', 'XLP', 'XLU', 'XLB', 'XLRE', 'XLC',
+      'XOP', 'OIH', 'ITA', 'XHB', 'ITB', 'XRT', 'IBB', 'SMH', 'SOXX', 'GDX', 'GDXJ',
+      'GLD', 'SLV', 'COPX', 'REMX', 'XME', 'MOO', 'PHO', 'JETS', 'XBI', 'FCG',
+      'AIQ', 'DTCR', 'CLOU', 'WCLD', 'ARKW', 'IGV', 'BOTZ', 'HUMN', 'UFO', 'ARKX',
+      'SHLD', 'CIBR', 'HACK', 'URNM', 'URA', 'NLR', 'GRID', 'ICLN', 'TAN', 'LIT',
+      'DRIV', 'PAVE', 'IYT', 'FINX', 'IBIT', 'BKCH', 'ETHE', 'ARKG', 'ARKK', 'ARKQ',
+      'QQQ', 'IWM', 'SPY',
     ]
     fetchRS(allTickers)
       .then((data: unknown) => setRsData(data as { ticker: string; rs_slope: number; rs_strength: number; rs_momentum: number }[]))

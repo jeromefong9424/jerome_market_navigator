@@ -74,7 +74,7 @@ FALLBACK_DATA = {
         "regime": "Market in a digest phase. Leadership rotating from broad tech into selective themes. Watch for trend-confirmation breaks.",
         "hottest": "1) AI Data Center: power infra + networking 2) Nuclear/Uranium: SMR regulatory catalyst + data center demand 3) Energy: oil services recovering as capex cycle turns",
         "gaps": "Optical networking (AAOI, LITE), tanker shipping (FRO, STNG), GLP-1 supply chain (LLY, NOVO) — no ETF coverage for these high-beta movers",
-        "avoid": "Broad emerging market exposure. Rising费率 headwinds. Rate-sensitive REITs under pressure."
+        "avoid": "Broad emerging market exposure. Rising rate headwinds. Rate-sensitive REITs under pressure."
     }
 }
 
@@ -90,7 +90,8 @@ def get_theme_map():
         try:
             cached_ts = date.fromisoformat(cached_date)
             today = date.today()
-            if (today - cached_ts).days < 7:
+            if (today - cached_ts).days < 1:
+                cache["_source"] = "cache"
                 return cache
         except Exception:
             pass
@@ -152,6 +153,7 @@ Output ONLY valid JSON, no markdown, no preamble:
         if not api_key:
             result = FALLBACK_DATA.copy()
             result["date"] = today_str
+            result["_source"] = "fallback"
             _save_cache(result)
             return result
 
@@ -176,6 +178,7 @@ Output ONLY valid JSON, no markdown, no preamble:
         if res.status_code != 200:
             result = FALLBACK_DATA.copy()
             result["date"] = today_str
+            result["_source"] = "fallback"
             _save_cache(result)
             return result
 
@@ -188,6 +191,7 @@ Output ONLY valid JSON, no markdown, no preamble:
         if not raw:
             result = FALLBACK_DATA.copy()
             result["date"] = today_str
+            result["_source"] = "fallback"
             _save_cache(result)
             return result
 
@@ -195,11 +199,13 @@ Output ONLY valid JSON, no markdown, no preamble:
         end = raw.rindex('}') + 1
         data = json.loads(raw[start:end])
         data["date"] = today_str
+        data["_source"] = "live"
         _save_cache(data)
         return data
 
     except Exception:
         result = FALLBACK_DATA.copy()
         result["date"] = today_str
+        result["_source"] = "fallback"
         _save_cache(result)
         return result

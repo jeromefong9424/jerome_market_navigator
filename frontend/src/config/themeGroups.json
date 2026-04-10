@@ -3,9 +3,8 @@
     {
       "id": "oil_gas",
       "name": "Oil & Gas / Energy",
-      "etfs": ["XLE", "XOP", "FCG"],
+      "etfs": ["XLE", "XOP", "FCG", "OIH"],
       "coverageGaps": [
-        { "branch": "Oil Services", "missingETF": "OIH", "leaders": ["SLB", "HAL", "BKR", "NOV"] },
         { "branch": "Tanker / Shipping", "missingETF": null, "leaders": ["FRO", "STNG", "INSW", "TNK"] }
       ]
     },
@@ -20,13 +19,13 @@
     {
       "id": "nuclear_uranium",
       "name": "Nuclear / Uranium",
-      "etfs": ["URNM", "NLR"],
+      "etfs": ["URNM", "URA", "NLR"],
       "coverageGaps": []
     },
     {
       "id": "power_grid",
       "name": "Power / Grid / Clean Energy",
-      "etfs": ["GRID", "ICLN", "LIT", "XLU"],
+      "etfs": ["GRID", "ICLN", "TAN", "LIT", "XLU"],
       "coverageGaps": [
         { "branch": "Data Center Power", "missingETF": null, "leaders": ["GEV", "VST", "CEG", "NRG"] }
       ]
@@ -44,15 +43,14 @@
     {
       "id": "semis",
       "name": "Semiconductors",
-      "etfs": ["SMH"],
+      "etfs": ["SMH", "SOXX"],
       "coverageGaps": []
     },
     {
       "id": "cloud_software",
       "name": "Cloud / Software",
-      "etfs": ["CLOU", "WCLD", "ARKW"],
+      "etfs": ["CLOU", "WCLD", "ARKW", "IGV"],
       "coverageGaps": [
-        { "branch": "Communication Services", "missingETF": "XLC", "leaders": ["META", "GOOGL", "NFLX", "DIS"] }
       ]
     },
     {
@@ -64,7 +62,7 @@
     {
       "id": "crypto",
       "name": "Crypto / Blockchain",
-      "etfs": ["IBIT", "BKCH"],
+      "etfs": ["IBIT", "BKCH", "ETHE"],
       "coverageGaps": []
     },
     {
@@ -104,13 +102,13 @@
     {
       "id": "infrastructure",
       "name": "Infrastructure / EV / Industrials",
-      "etfs": ["PAVE", "DRIV", "XLI"],
+      "etfs": ["PAVE", "DRIV", "IYT", "XLI"],
       "coverageGaps": []
     },
     {
       "id": "materials",
       "name": "Materials",
-      "etfs": ["XLB"],
+      "etfs": ["XLB", "XME"],
       "coverageGaps": []
     },
     {

@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useCallback } from 'react'
 import { ChevronDown } from 'lucide-react'
 import themeGroups from '../config/themeGroups.json'
 import { useStore } from '../store'
@@ -15,7 +15,7 @@ interface RSRow {
   from_high_pct?: number | null
 }
 
-const SECTOR_ETFS = new Set(['XLK', 'XLE', 'XLF', 'XLV', 'XLI', 'XLY', 'XLP', 'XLU', 'XLB', 'XLRE'])
+const SECTOR_ETFS = new Set(['XLK', 'XLE', 'XLF', 'XLV', 'XLI', 'XLY', 'XLP', 'XLU', 'XLB', 'XLRE', 'XLC'])
 
 function dotColor(rs: number) {
   if (rs > 1.0) return '#2ea043'
@@ -35,6 +35,8 @@ export default function ThemeSidebar({
   const setSelectedTicker = useStore(s => s.setSelectedTicker)
   const [collapsed, setCollapsed] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'themes' | 'sectors'>('themes')
+  const [sidebarWidth, setSidebarWidth] = useState(320)
+  const resizing = useRef(false)
   const [filterTheme, setFilterTheme] = useState<string>('all')
   const [sortCol, setSortCol] = useState<'rs_slope' | 'pct_1w' | 'pct_1m' | 'ytd_pct'>('pct_1w')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
@@ -95,6 +97,25 @@ export default function ThemeSidebar({
     onSelectTheme(themeId)
   }
 
+  const onResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    resizing.current = true
+    const startX = e.clientX
+    const startW = sidebarWidth
+    const onMove = (ev: MouseEvent) => {
+      if (!resizing.current) return
+      const newW = Math.max(240, Math.min(600, startW + (ev.clientX - startX)))
+      setSidebarWidth(newW)
+    }
+    const onUp = () => {
+      resizing.current = false
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [sidebarWidth])
+
   const selectedThemeName = useMemo(() => {
     if (filterTheme === 'all') return 'All Themes'
     return themeGroups.themes.find(t => t.id === filterTheme)?.name ?? filterTheme
@@ -111,7 +132,7 @@ export default function ThemeSidebar({
   }
 
   return (
-    <div className="flex-shrink-0 border-r border-white/5 w-[320px] bg-[#0d1117] flex flex-col overflow-hidden">
+    <div className="flex-shrink-0 border-r border-white/5 bg-[#0d1117] flex flex-col overflow-hidden relative" style={{ width: sidebarWidth }}>
       {/* Header with tab toggle */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 flex-shrink-0">
         <div className="flex items-center rounded-md border border-white/10 overflow-hidden">
@@ -199,7 +220,7 @@ export default function ThemeSidebar({
               className={`w-full grid items-center gap-1 px-3 py-2 border-b border-white/[0.03] text-left transition-all ${
                 isSelected ? 'bg-[#1c2129] border-l-2 border-l-[#58a6ff]' : 'hover:bg-[#161b22] border-l-2 border-l-transparent'
               }`}
-              style={{ gridTemplateColumns: '16px 14px 1fr 64px 56px' }}
+              style={{ gridTemplateColumns: '16px 14px 52px 1fr 56px' }}
             >
               {/* Rank */}
               <span className="text-[9px] text-zinc-600 font-mono">
@@ -244,6 +265,12 @@ export default function ThemeSidebar({
           </div>
         )}
       </div>
+
+      {/* Resize handle */}
+      <div
+        onMouseDown={onResizeStart}
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-[#58a6ff]/40 transition-colors z-10"
+      />
     </div>
   )
 }

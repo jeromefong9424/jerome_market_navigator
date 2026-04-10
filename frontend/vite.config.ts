@@ -7,6 +7,8 @@ export default defineConfig({
   base: process.env.NODE_ENV === 'production' ? '/jerome_market_navigator/' : '/',
   plugins: [react(), tailwindcss()],
   server: {
+    port: 5001,
+    strictPort: true,
     proxy: {
       '/api': 'http://localhost:8001',
     },
