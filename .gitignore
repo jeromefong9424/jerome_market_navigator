@@ -18,6 +18,12 @@ backend/regime_cache.json
 backend/theme_leaders_cache.json
 backend/theme_map_cache.json
 
+# Local runtime
+.jmn-app.log
+.pids/
+prototypes/
+CLAUDE_CODE_HANDOFF.md
+
 # Editor
 .DS_Store
 *.swp

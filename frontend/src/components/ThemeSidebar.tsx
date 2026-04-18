@@ -302,7 +302,14 @@ export default function ThemeSidebar({
           )
         })}
 
-        {sorted.length === 0 && (
+        {sorted.length === 0 && rsData.length === 0 && (
+          <div className="px-2 py-2 flex flex-col gap-1.5">
+            {[1,2,3,4,5,6,7,8].map(i => (
+              <div key={i} className="shimmer-line h-8 rounded-md" />
+            ))}
+          </div>
+        )}
+        {sorted.length === 0 && rsData.length > 0 && (
           <div className="px-3 py-6 text-[11px] text-center" style={{ color: 'var(--muted-2)' }}>
             No ETFs found
           </div>

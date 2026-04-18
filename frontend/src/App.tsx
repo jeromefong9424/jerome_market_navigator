@@ -8,16 +8,14 @@ import AIPanel from './components/AIPanel'
 import ETFDetailPanel from './components/ETFDetailPanel'
 import MobileTabBar, { type MobileTab } from './components/MobileTabBar'
 import MobileAISheet from './components/MobileAISheet'
+import MobileLeaderboard from './components/MobileLeaderboard'
 import { fetchRS, fetchRegime } from './api'
 import { useStore } from './store'
 import themeGroups from './config/themeGroups.json'
 
-type NavTab = 'markets' | 'themes' | 'watchlist' | 'briefing'
-
 export default function App() {
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null)
   const [themeTab, setThemeTab] = useState<'etfs' | 'supply'>('etfs')
-  const [navTab, setNavTab] = useState<NavTab>('markets')
   const [mobileTab, setMobileTab] = useState<MobileTab>('markets')
   const [aiSheetOpen, setAiSheetOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -63,13 +61,6 @@ export default function App() {
       .catch(() => {})
   }, [])
 
-  const tabs: { id: NavTab; label: string }[] = [
-    { id: 'markets', label: 'Markets' },
-    { id: 'themes', label: 'Themes' },
-    { id: 'watchlist', label: 'Watchlist' },
-    { id: 'briefing', label: 'Briefing' },
-  ]
-
   return (
     <div className="app-bg relative flex flex-col min-h-screen overflow-hidden font-sans" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
 
@@ -97,24 +88,6 @@ export default function App() {
             JMN <span style={{ color: 'var(--muted-2)' }}>· Navigator</span>
           </span>
         </div>
-
-        {/* Nav tabs */}
-        <nav className="flex items-center gap-1 ml-2 max-md:hidden">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setNavTab(t.id)}
-              className="px-3 h-8 rounded-[10px] text-[12px] font-medium transition-colors"
-              style={{
-                background: navTab === t.id ? 'var(--panel-2)' : 'transparent',
-                boxShadow: navTab === t.id ? 'inset 0 0 0 1px var(--line-2)' : 'none',
-                color: navTab === t.id ? 'var(--text)' : 'var(--muted)',
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
 
         {/* Search */}
         <div className="flex-1 flex justify-center max-md:hidden">
@@ -255,9 +228,16 @@ export default function App() {
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-xs gap-3" style={{ color: 'var(--muted-2)' }}>
-              <div style={{ color: 'var(--muted)' }}>Select an ETF from the sidebar</div>
-            </div>
+            <>
+              {/* Mobile: leaderboard view */}
+              <div className="flex-1 overflow-y-auto md:hidden">
+                <MobileLeaderboard rsData={rsData} onOpenBriefing={() => setAiSheetOpen(true)} />
+              </div>
+              {/* Desktop: empty hint */}
+              <div className="flex-col items-center justify-center h-full text-xs gap-3 hidden md:flex" style={{ color: 'var(--muted-2)' }}>
+                <div style={{ color: 'var(--muted)' }}>Select an ETF from the sidebar</div>
+              </div>
+            </>
           )}
         </div>
 
