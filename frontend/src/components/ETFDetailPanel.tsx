@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries } from 'lightweight-charts'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import { fetchRS, fetchHoldings } from '../api'
+import { quadrant, QUAD_COLOR, QUAD_LABEL, QUAD_BG } from '../lib/quadrant'
+import { Sparkline } from './ui/Sparkline'
 
 interface RSData {
   ticker: string
@@ -26,6 +28,7 @@ interface HoldingRow {
   price: number
 }
 
+// ── TradingView iframe — UNCHANGED per handoff spec ────────────────────────────
 function ETFDashboardChart({ ticker }: { ticker: string }) {
   const src = `https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(ticker)}&interval=D&hideideas=1&theme=dark&style=1&locale=en&allow_symbol_change=1&save_image=0`
 
@@ -39,8 +42,7 @@ function ETFDashboardChart({ ticker }: { ticker: string }) {
   )
 }
 
-
-// ─── Mini candlestick chart for hover card ────────────────────────────────────
+// ── Mini candle chart for hover card ───────────────────────────────────────────
 function MiniChart({ ticker }: { ticker: string }) {
   const ref = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,7 +57,7 @@ function MiniChart({ ticker }: { ticker: string }) {
     const chart = createChart(ref.current, {
       width: ref.current.clientWidth || 280,
       height: 140,
-      layout: { background: { type: ColorType.Solid, color: '#0d1117' }, textColor: '#6e7681' },
+      layout: { background: { type: ColorType.Solid, color: '#0b0f1a' }, textColor: '#8892a8' },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       crosshair: { mode: CrosshairMode.Hidden },
       rightPriceScale: { visible: false },
@@ -65,12 +67,12 @@ function MiniChart({ ticker }: { ticker: string }) {
       handleScale: false,
     })
     const candle = chart.addSeries(CandlestickSeries, {
-      upColor: '#2ea043', downColor: '#f85149',
-      borderUpColor: '#2ea043', borderDownColor: '#f85149',
-      wickUpColor: '#2ea043', wickDownColor: '#f85149',
+      upColor: '#39d67b', downColor: '#ff5e7a',
+      borderUpColor: '#39d67b', borderDownColor: '#ff5e7a',
+      wickUpColor: '#39d67b', wickDownColor: '#ff5e7a',
     })
     const vol = chart.addSeries(HistogramSeries, {
-      color: 'rgba(46,160,67,0.4)',
+      color: 'rgba(57,214,123,0.4)',
       priceFormat: { type: 'volume' },
       priceScaleId: 'vol',
     })
@@ -90,7 +92,7 @@ function MiniChart({ ticker }: { ticker: string }) {
       vol.setData(row.candles.map((c: { time: string; open: number; high: number; low: number; close: number; volume?: number }) => ({
         time: c.time,
         value: c.volume ?? 0,
-        color: c.close >= c.open ? 'rgba(46,160,67,0.4)' : 'rgba(248,81,73,0.4)',
+        color: c.close >= c.open ? 'rgba(57,214,123,0.4)' : 'rgba(255,94,122,0.4)',
       })))
       chartRef.current?.timeScale().fitContent()
     }).catch(() => {})
@@ -101,6 +103,7 @@ function MiniChart({ ticker }: { ticker: string }) {
   return <div ref={ref} className="w-full" />
 }
 
+// ── Holding row ────────────────────────────────────────────────────────────────
 function HoldingRow({ ticker, rank }: { ticker: string; rank: number }) {
   const [data, setData] = useState<HoldingRow | null>(null)
 
@@ -123,48 +126,56 @@ function HoldingRow({ ticker, rank }: { ticker: string; rank: number }) {
 
   return (
     <div
-      className="grid items-center gap-2 px-4 py-1.5 border-b border-white/[0.03] hover:bg-[#161b22] transition-colors text-[10px]"
-      style={{ gridTemplateColumns: '24px 1fr 60px 60px 60px 60px' }}
+      className="grid items-center gap-2 px-4 py-2 text-[11px] font-mono tabular-nums border-b"
+      style={{ borderColor: 'var(--line)', gridTemplateColumns: '28px 1fr 72px 72px 72px 72px' }}
     >
-      <span className="text-zinc-600">{rank}</span>
+      <span style={{ color: 'var(--muted-2)' }}>{rank}</span>
       <HoverCard.Root>
         <HoverCard.Trigger asChild>
-          <span className="font-bold text-zinc-200 cursor-pointer hover:text-[#58a6ff] transition-colors">{ticker}</span>
+          <span
+            className="font-semibold cursor-pointer transition-colors hover:opacity-80"
+            style={{ color: 'var(--text)' }}
+          >
+            {ticker}
+          </span>
         </HoverCard.Trigger>
         <HoverCard.Portal>
           <HoverCard.Content
-            className="rounded-xl border border-[#2A2A2A] bg-[#0D0D0D] shadow-2xl overflow-hidden z-50"
+            className="rounded-xl border shadow-2xl overflow-hidden z-50"
             sideOffset={4}
-            style={{ width: 300 }}
+            style={{ width: 300, background: '#0b0f1a', borderColor: 'var(--line-2)' }}
           >
-            <div className="px-3 py-2 border-b border-[#1A1A1A] flex items-center justify-between">
-              <span className="text-white text-[11px] font-bold">{ticker}</span>
-              <span className="text-zinc-600 text-[9px]">3mo · daily</span>
+            <div
+              className="px-3 py-2 border-b flex items-center justify-between"
+              style={{ borderColor: 'var(--line)' }}
+            >
+              <span className="text-[11px] font-bold" style={{ color: 'var(--text)' }}>{ticker}</span>
+              <span className="text-[9px]" style={{ color: 'var(--muted-2)' }}>3mo · daily</span>
             </div>
             <MiniChart ticker={ticker} />
-            <HoverCard.Arrow className="fill-[#2A2A2A]" />
+            <HoverCard.Arrow style={{ fill: 'var(--line-2)' }} />
           </HoverCard.Content>
         </HoverCard.Portal>
       </HoverCard.Root>
       {data ? (
         <>
-          <span className="font-mono" style={{ color: (data.pct_1w ?? 0) >= 0 ? '#2ea043' : '#f85149' }}>
+          <span style={{ color: (data.pct_1w ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>
             {data.pct_1w != null ? `${data.pct_1w >= 0 ? '+' : ''}${data.pct_1w.toFixed(1)}%` : '—'}
           </span>
-          <span className="font-mono" style={{ color: (data.pct_1m ?? 0) >= 0 ? '#2ea043' : '#f85149' }}>
+          <span style={{ color: (data.pct_1m ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>
             {data.pct_1m != null ? `${data.pct_1m >= 0 ? '+' : ''}${data.pct_1m.toFixed(1)}%` : '—'}
           </span>
-          <span className="font-mono" style={{ color: data.from_high_pct >= -5 ? '#2ea043' : '#f85149' }}>
+          <span style={{ color: data.from_high_pct >= -5 ? 'var(--up)' : 'var(--down)' }}>
             {data.from_high_pct.toFixed(1)}%
           </span>
-          <span className="font-mono text-zinc-400">${data.price.toFixed(2)}</span>
+          <span style={{ color: 'var(--muted)' }}>${data.price.toFixed(2)}</span>
         </>
       ) : (
         <>
-          <span className="text-zinc-600">—</span>
-          <span className="text-zinc-600">—</span>
-          <span className="text-zinc-600">—</span>
-          <span className="text-zinc-600">—</span>
+          <span style={{ color: 'var(--muted-2)' }}>—</span>
+          <span style={{ color: 'var(--muted-2)' }}>—</span>
+          <span style={{ color: 'var(--muted-2)' }}>—</span>
+          <span style={{ color: 'var(--muted-2)' }}>—</span>
         </>
       )}
     </div>
@@ -194,74 +205,146 @@ export default function ETFDetailPanel({ ticker, onBack }: ETFDetailPanelProps) 
       .catch(() => {})
   }, [ticker])
 
+  const quad = rsData ? quadrant(rsData.rs_strength, rsData.rs_momentum) : 'lagging'
+  const quadColor = QUAD_COLOR[quad]
+
+  const stats = rsData ? [
+    { label: '1W', value: rsData.pct_1w, tone: (rsData.pct_1w ?? 0) >= 0 ? 'up' : 'down', suffix: '%' },
+    { label: '1M', value: rsData.pct_1m, tone: (rsData.pct_1m ?? 0) >= 0 ? 'up' : 'down', suffix: '%' },
+    { label: 'YTD', value: rsData.ytd_pct, tone: (rsData.ytd_pct ?? 0) >= 0 ? 'up' : 'down', suffix: '%' },
+    { label: '52W HI', value: rsData.from_high_pct, tone: (rsData.from_high_pct ?? 0) >= -5 ? 'up' : 'down', suffix: '%' },
+    { label: 'RS STR', value: rsData.rs_strength, tone: 'neutral', suffix: '' },
+  ] : []
+
   return (
-    <div className="flex flex-col">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b border-white/5 px-4 py-2 flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="text-[10px] text-zinc-600 hover:text-zinc-300 transition-colors border border-white/10 px-2 py-1 rounded"
-        >
-          ← Back
-        </button>
-        <span className="text-[13px] font-bold text-zinc-200">{ticker}</span>
-        {rsData && (
-          <span className="text-[11px] font-mono text-zinc-500">${rsData.price?.toFixed(2)}</span>
-        )}
-        {rsData && (
-          <span className="text-[11px] font-mono font-semibold" style={{ color: rsData.rs_slope >= 0 ? '#2ea043' : '#f85149' }}>
-            RS: {rsData.rs_slope >= 0 ? '+' : ''}{rsData.rs_slope.toFixed(3)}
-          </span>
-        )}
-      </div>
+    <div className="flex flex-col px-5 py-4 gap-4">
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="self-start flex items-center gap-1.5 text-[11px] font-medium transition-colors px-2.5 h-7 rounded-[8px] border"
+        style={{ borderColor: 'var(--line)', color: 'var(--muted)', background: 'var(--panel)' }}
+      >
+        ← Back
+      </button>
 
-      {/* Stats row */}
-      {rsData && (
-        <div className="flex-shrink-0 grid grid-cols-5 gap-0 border-b border-white/5">
-          {[
-            { label: '1W%', value: rsData.pct_1w, color: (rsData.pct_1w ?? 0) >= 0 ? '#2ea043' : '#f85149', suffix: '%' },
-            { label: '1M%', value: rsData.pct_1m, color: (rsData.pct_1m ?? 0) >= 0 ? '#2ea043' : '#f85149', suffix: '%' },
-            { label: 'YTD%', value: rsData.ytd_pct, color: (rsData.ytd_pct ?? 0) >= 0 ? '#2ea043' : '#f85149', suffix: '%' },
-            { label: '52w Hi%', value: rsData.from_high_pct, color: (rsData.from_high_pct ?? 0) >= -5 ? '#2ea043' : '#f85149', suffix: '%' },
-            { label: 'RS Strength', value: rsData.rs_strength, color: '#6e7681', suffix: '' },
-          ].map(({ label, value, color, suffix }) => (
-            <div key={label} className="flex flex-col items-center py-2 border-r border-white/[0.03] last:border-r-0">
-              <span className="text-[8px] uppercase tracking-widest text-zinc-600">{label}</span>
-              <span className="text-[12px] font-mono font-semibold" style={{ color }}>
-                {value != null ? `${value >= 0 ? '+' : ''}${value.toFixed(1)}${suffix}` : '—'}
+      {/* Hero card */}
+      <div
+        className="rounded-xl border overflow-hidden"
+        style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}
+      >
+        <div className="grid grid-cols-[1fr_auto] gap-6 p-5 max-md:grid-cols-1">
+          {/* Left — identity + stats */}
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-[28px] font-bold tracking-tight" style={{ color: 'var(--text)' }}>
+                {ticker}
               </span>
+              {rsData && (
+                <span
+                  className="font-mono text-[10px] font-semibold tracking-[0.1em] px-2 py-1 rounded-[6px]"
+                  style={{ background: QUAD_BG[quad], color: quadColor }}
+                >
+                  {QUAD_LABEL[quad]}
+                </span>
+              )}
+              {rsData && rsData.price !== undefined && (
+                <span className="font-mono text-[16px] font-semibold tabular-nums" style={{ color: 'var(--text)' }}>
+                  ${rsData.price.toFixed(2)}
+                </span>
+              )}
             </div>
-          ))}
-        </div>
-      )}
 
-      {/* Chart */}
-      <div className="flex-shrink-0 px-2 pt-2" style={{ height: 460 }}>
-        <ETFDashboardChart ticker={ticker} />
+            {/* 5-stat row */}
+            {rsData && (
+              <div className="grid grid-cols-5 gap-3 mt-5 max-md:grid-cols-3">
+                {stats.map(s => {
+                  const toneColor = s.tone === 'up' ? 'var(--up)' : s.tone === 'down' ? 'var(--down)' : 'var(--muted)'
+                  return (
+                    <div key={s.label}>
+                      <div className="font-mono text-[9px] tracking-[0.15em] uppercase" style={{ color: 'var(--muted-2)' }}>
+                        {s.label}
+                      </div>
+                      <div
+                        className="font-mono text-[14px] font-semibold tabular-nums mt-1"
+                        style={{ color: toneColor }}
+                      >
+                        {s.value != null ? `${s.value >= 0 ? '+' : ''}${s.value.toFixed(1)}${s.suffix}` : '—'}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Right — RS sparkline + slope caption */}
+          {rsData && rsData.rs_norm && rsData.rs_norm.length > 0 && (
+            <div className="flex flex-col items-end justify-center gap-1">
+              <Sparkline values={rsData.rs_norm} color={quadColor} width={160} height={50} strokeWidth={2} />
+              <div className="font-mono text-[10px] tracking-[0.1em]" style={{ color: 'var(--muted-2)' }}>
+                <span style={{ color: 'var(--muted)' }}>slope </span>
+                <span style={{ color: rsData.rs_slope >= 0 ? 'var(--up)' : 'var(--down)' }}>
+                  {rsData.rs_slope >= 0 ? '+' : ''}{rsData.rs_slope.toFixed(3)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Holdings */}
-      <div className="flex-1 overflow-y-auto mt-2">
-        <div className="px-4 py-1.5 text-[9px] uppercase tracking-widest text-zinc-600 font-semibold border-b border-white/[0.03]">
-          Top Holdings — {ticker}
-        </div>
-        {/* Holdings header */}
+      {/* Price action panel — wraps TradingView iframe, iframe itself untouched */}
+      <div
+        className="rounded-xl border overflow-hidden"
+        style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}
+      >
         <div
-          className="grid items-center gap-2 px-4 py-1.5 border-b border-white/[0.03] bg-[#161b22]/50 text-[9px] uppercase tracking-widest text-zinc-600 font-semibold"
-          style={{ gridTemplateColumns: '24px 1fr 60px 60px 60px 60px' }}
+          className="flex items-center justify-between px-4 py-2.5 border-b"
+          style={{ borderColor: 'var(--line)' }}
+        >
+          <span className="text-[12px] font-semibold" style={{ color: 'var(--text)' }}>
+            Price action
+          </span>
+          <span className="font-mono text-[10px] tracking-[0.15em] uppercase" style={{ color: 'var(--muted-2)' }}>
+            Daily · TradingView
+          </span>
+        </div>
+        <div style={{ height: 460 }}>
+          <ETFDashboardChart ticker={ticker} />
+        </div>
+      </div>
+
+      {/* Holdings panel */}
+      <div
+        className="rounded-xl border overflow-hidden"
+        style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}
+      >
+        <div
+          className="flex items-center justify-between px-4 py-2.5 border-b"
+          style={{ borderColor: 'var(--line)' }}
+        >
+          <span className="text-[12px] font-semibold" style={{ color: 'var(--text)' }}>
+            Top Holdings
+          </span>
+          <span className="font-mono text-[10px] tracking-[0.15em] uppercase" style={{ color: 'var(--muted-2)' }}>
+            {ticker}
+          </span>
+        </div>
+        <div
+          className="grid items-center gap-2 px-4 py-2 font-mono text-[9px] uppercase tracking-[0.12em] font-semibold border-b"
+          style={{ borderColor: 'var(--line)', gridTemplateColumns: '28px 1fr 72px 72px 72px 72px', color: 'var(--muted-2)' }}
         >
           <span>#</span>
-          <span>Holding</span>
-          <span>1W%</span>
-          <span>1M%</span>
-          <span>52w</span>
-          <span>Price</span>
+          <span>HOLDING</span>
+          <span>1W</span>
+          <span>1M</span>
+          <span>52W</span>
+          <span>PRICE</span>
         </div>
         {holdings.slice(0, 10).map((t, i) => (
           <HoldingRow key={t} ticker={t} rank={i + 1} />
         ))}
         {holdings.length === 0 && (
-          <div className="px-4 py-6 text-[10px] text-zinc-600">Loading holdings...</div>
+          <div className="px-4 py-6 text-[10px]" style={{ color: 'var(--muted-2)' }}>Loading holdings…</div>
         )}
       </div>
     </div>

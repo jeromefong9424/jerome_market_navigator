@@ -41,14 +41,23 @@ def _fetch_names(symbols: list[str]) -> dict:
 # ─── RS cache: results cached to disk, refresh only on demand ───────────────
 def _load_rs_cache() -> dict:
     if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE) as f:
-            return json.load(f)
+        try:
+            with open(CACHE_FILE) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            # Corrupt cache — treat as empty, will rebuild on next write
+            return {"date": "", "data": {}}
     return {"date": "", "data": {}}
 
 
 def _save_rs_cache(cache: dict):
-    with open(CACHE_FILE, 'w') as f:
-        json.dump(cache, f)
+    # Atomic write: serialize to string first, then write + rename
+    # Prevents corruption when concurrent requests write the cache
+    tmp = CACHE_FILE + '.tmp'
+    data = json.dumps(cache)
+    with open(tmp, 'w') as f:
+        f.write(data)
+    os.replace(tmp, CACHE_FILE)
 
 
 def _compute_rs(symbols_to_fetch: list[str], cache: dict) -> list[dict]:

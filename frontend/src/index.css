@@ -1,7 +1,50 @@
 @import "tailwindcss";
 
-/* ─── Dark theme tokens ───────────────────────────────────────────────────────── */
+/* ─── Quantum design tokens ──────────────────────────────────────────────────── */
+@theme {
+  --color-bg:        #0b0f1a;
+  --color-bg-deep:   #070a13;
+  --color-panel:     rgba(255, 255, 255, 0.025);
+  --color-panel-2:   rgba(255, 255, 255, 0.05);
+  --color-panel-hi:  rgba(255, 255, 255, 0.08);
+  --color-line:      rgba(255, 255, 255, 0.06);
+  --color-line-2:    rgba(255, 255, 255, 0.10);
+  --color-muted:     #8892a8;
+  --color-muted-2:   #525c75;
+  --color-leading:   #9b8cff;
+  --color-improving: #6cb0ff;
+  --color-weakening: #f2b366;
+  --color-lagging:   #ef6f8d;
+  --color-up:        #39d67b;
+  --color-down:      #ff5e7a;
+  --color-cyan:      #4ee1d6;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ─── Theme tokens (CSS vars for direct use) ─────────────────────────────────── */
 :root {
+  /* Quantum — new */
+  --bg: #0b0f1a;
+  --bg-deep: #070a13;
+  --panel: rgba(255, 255, 255, 0.025);
+  --panel-2: rgba(255, 255, 255, 0.05);
+  --panel-hi: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.06);
+  --line-2: rgba(255, 255, 255, 0.10);
+  --text: #e6ecf5;
+  --muted: #8892a8;
+  --muted-2: #525c75;
+  --leading:   #9b8cff;
+  --improving: #6cb0ff;
+  --weakening: #f2b366;
+  --lagging:   #ef6f8d;
+  --up:   #39d67b;
+  --down: #ff5e7a;
+  --cyan: #4ee1d6;
+
+  /* Legacy — kept for gradual migration (remove in Phase 9 polish) */
   --bg-primary: #0d1117;
   --bg-surface: #161b22;
   --bg-elevated: #1c2129;
@@ -23,14 +66,26 @@
 }
 
 /* Typography */
-.font-mono {
-  font-family: 'SF Mono', SFMono-Regular, ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+.font-mono, .mono {
+  font-family: 'JetBrains Mono', SFMono-Regular, ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
+}
+
+/* Ambient backdrop glow — opt-in via .app-bg class on root container */
+.app-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(800px 500px at 10% -10%, rgba(155,140,255,0.06), transparent 60%),
+    radial-gradient(700px 500px at 95% 110%, rgba(108,176,255,0.05), transparent 60%);
 }
 
 /* ─── Dark scrollbar ─────────────────────────────────────────────────────────── */

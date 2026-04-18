@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useCallback } from 'react'
 import { ChevronDown } from 'lucide-react'
 import themeGroups from '../config/themeGroups.json'
 import { useStore } from '../store'
+import { quadrant, QUAD_COLOR } from '../lib/quadrant'
 
 interface RSRow {
   ticker: string
@@ -17,12 +18,6 @@ interface RSRow {
 
 const SECTOR_ETFS = new Set(['XLK', 'XLE', 'XLF', 'XLV', 'XLI', 'XLY', 'XLP', 'XLU', 'XLB', 'XLRE', 'XLC'])
 
-function dotColor(rs: number) {
-  if (rs > 1.0) return '#2ea043'
-  if (rs >= 0) return '#d29922'
-  return '#f85149'
-}
-
 export default function ThemeSidebar({
   rsData,
   selectedTheme,
@@ -35,7 +30,7 @@ export default function ThemeSidebar({
   const setSelectedTicker = useStore(s => s.setSelectedTicker)
   const [collapsed, setCollapsed] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'themes' | 'sectors'>('themes')
-  const [sidebarWidth, setSidebarWidth] = useState(320)
+  const [sidebarWidth, setSidebarWidth] = useState(280)
   const resizing = useRef(false)
   const [filterTheme, setFilterTheme] = useState<string>('all')
   const [sortCol, setSortCol] = useState<'rs_slope' | 'pct_1w' | 'pct_1m' | 'ytd_pct'>('pct_1w')
@@ -43,39 +38,32 @@ export default function ThemeSidebar({
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Build flat list of all ETFs with their theme info
   const allETFs = useMemo(() => {
     const rsMap = new Map(rsData.map(r => [r.ticker, r]))
     const rows: (RSRow & { themeId: string; themeName: string })[] = []
     for (const theme of themeGroups.themes) {
       for (const ticker of theme.etfs) {
         const rs = rsMap.get(ticker)
-        if (rs) {
-          rows.push({ ...rs, themeId: theme.id, themeName: theme.name })
-        }
+        if (rs) rows.push({ ...rs, themeId: theme.id, themeName: theme.name })
       }
     }
     return rows
   }, [rsData])
 
-  // Sector ETFs flat list
   const sectorETFs = useMemo(() => {
     return rsData
       .filter(r => SECTOR_ETFS.has(r.ticker))
       .map(r => ({ ...r, themeId: 'sectors', themeName: 'Sector' }))
   }, [rsData])
 
-  // Pick list based on tab
   const tabData = sidebarTab === 'sectors'
     ? sectorETFs
     : allETFs.filter(r => !SECTOR_ETFS.has(r.ticker))
 
-  // Filter (theme dropdown only applies to themes tab)
   const filtered = sidebarTab === 'themes' && filterTheme !== 'all'
     ? tabData.filter(r => r.themeId === filterTheme)
     : tabData
 
-  // Sort
   const sorted = [...filtered].sort((a, b) => {
     let av: number, bv: number
     switch (sortCol) {
@@ -89,7 +77,7 @@ export default function ThemeSidebar({
 
   const handleSort = (col: typeof sortCol) => {
     if (sortCol === col) setSortDir(d => d === 1 ? -1 : 1)
-    else { setSortCol(col); setSortDir(1) }
+    else { setSortCol(col); setSortDir(-1) }
   }
 
   const selectETF = (ticker: string, themeId: string) => {
@@ -123,58 +111,103 @@ export default function ThemeSidebar({
 
   if (collapsed) {
     return (
-      <div className="flex-shrink-0 border-r border-white/5 w-10 bg-[#0d1117] flex flex-col items-center py-3 gap-2">
-        <button onClick={() => setCollapsed(false)} className="text-zinc-600 hover:text-zinc-300 text-xs px-1 py-4">
+      <div
+        className="flex-shrink-0 w-10 flex flex-col items-center py-3 gap-2 border-r"
+        style={{ borderColor: 'var(--line)', background: 'var(--bg)' }}
+      >
+        <button
+          onClick={() => setCollapsed(false)}
+          className="text-xs px-1 py-4 transition-colors"
+          style={{ color: 'var(--muted-2)' }}
+        >
           <span style={{ writingMode: 'vertical-rl' }}>▶ All ETFs</span>
         </button>
       </div>
     )
   }
 
+  const sortOpts = [
+    { id: 'rs_slope', label: 'RS' },
+    { id: 'pct_1w', label: '1W' },
+    { id: 'pct_1m', label: '1M' },
+    { id: 'ytd_pct', label: 'YTD' },
+  ] as const
+
   return (
-    <div className="flex-shrink-0 border-r border-white/5 bg-[#0d1117] flex flex-col overflow-hidden relative" style={{ width: sidebarWidth }}>
-      {/* Header with tab toggle */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 flex-shrink-0">
-        <div className="flex items-center rounded-md border border-white/10 overflow-hidden">
+    <div
+      className="flex-shrink-0 flex flex-col overflow-hidden relative border-r max-md:hidden"
+      style={{ width: sidebarWidth, borderColor: 'var(--line)', background: 'transparent' }}
+    >
+      {/* Header + tab toggle */}
+      <div
+        className="flex items-center justify-between px-3 py-2.5 border-b flex-shrink-0"
+        style={{ borderColor: 'var(--line)' }}
+      >
+        <div
+          className="flex items-center rounded-[10px] p-[3px] border"
+          style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}
+        >
           <button
             onClick={() => setSidebarTab('themes')}
-            className={`px-2.5 py-1 text-[9px] font-semibold transition-colors ${
-              sidebarTab === 'themes' ? 'bg-[#1c2129] text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
-            }`}
+            className="px-2.5 h-6 rounded-[7px] text-[10px] font-semibold transition-colors"
+            style={{
+              background: sidebarTab === 'themes' ? 'var(--panel-hi)' : 'transparent',
+              color: sidebarTab === 'themes' ? 'var(--text)' : 'var(--muted)',
+            }}
           >
-            Theme ETFs
+            Theme
           </button>
           <button
             onClick={() => setSidebarTab('sectors')}
-            className={`px-2.5 py-1 text-[9px] font-semibold transition-colors ${
-              sidebarTab === 'sectors' ? 'bg-[#1c2129] text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
-            }`}
+            className="px-2.5 h-6 rounded-[7px] text-[10px] font-semibold transition-colors"
+            style={{
+              background: sidebarTab === 'sectors' ? 'var(--panel-hi)' : 'transparent',
+              color: sidebarTab === 'sectors' ? 'var(--text)' : 'var(--muted)',
+            }}
           >
-            Sector ETFs
+            Sector
           </button>
         </div>
-        <button onClick={() => setCollapsed(true)} className="text-zinc-700 hover:text-zinc-400 transition-colors text-[10px]">
+        <button
+          onClick={() => setCollapsed(true)}
+          className="text-[10px] transition-colors"
+          style={{ color: 'var(--muted-2)' }}
+        >
           ◀
         </button>
       </div>
 
-      {/* Theme filter + sort */}
-      <div className="px-3 py-1.5 border-b border-white/5 flex-shrink-0 space-y-1">
-        {/* Theme dropdown (themes tab only) */}
+      {/* Filter + sort */}
+      <div
+        className="px-3 py-2 border-b flex-shrink-0 space-y-1.5"
+        style={{ borderColor: 'var(--line)' }}
+      >
         {sidebarTab === 'themes' && (
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(o => !o)}
-              className="w-full flex items-center justify-between px-2 py-1 bg-[#161b22] border border-white/10 rounded text-[10px] text-zinc-300 hover:bg-[#1c2129] transition-colors"
+              className="w-full flex items-center justify-between px-2.5 h-7 rounded-[8px] border text-[11px] transition-colors"
+              style={{
+                background: 'var(--panel)',
+                borderColor: 'var(--line)',
+                color: 'var(--text)',
+              }}
             >
               <span className="truncate">{selectedThemeName}</span>
-              <ChevronDown size={10} className={`text-zinc-500 flex-shrink-0 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={11} className={`flex-shrink-0 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} style={{ color: 'var(--muted-2)' }} />
             </button>
             {dropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-[#1c2129] border border-white/10 rounded z-50 shadow-xl max-h-48 overflow-y-auto">
+              <div
+                className="absolute top-full left-0 right-0 mt-1 rounded-[8px] z-50 shadow-xl max-h-48 overflow-y-auto border"
+                style={{ background: '#12182a', borderColor: 'var(--line-2)' }}
+              >
                 <button
                   onClick={() => { setFilterTheme('all'); setDropdownOpen(false) }}
-                  className={`w-full text-left px-2 py-1 text-[10px] transition-colors ${filterTheme === 'all' ? 'text-[#58a6ff] bg-[#1c3a5f]' : 'text-zinc-300 hover:bg-[#161b22]'}`}
+                  className="w-full text-left px-2.5 h-7 text-[11px] transition-colors"
+                  style={{
+                    color: filterTheme === 'all' ? 'var(--leading)' : 'var(--text)',
+                    background: filterTheme === 'all' ? 'rgba(155,140,255,0.08)' : 'transparent',
+                  }}
                 >
                   All Themes
                 </button>
@@ -182,7 +215,11 @@ export default function ThemeSidebar({
                   <button
                     key={t.id}
                     onClick={() => { setFilterTheme(t.id); setDropdownOpen(false) }}
-                    className={`w-full text-left px-2 py-1 text-[10px] transition-colors truncate ${filterTheme === t.id ? 'text-[#58a6ff] bg-[#1c3a5f]' : 'text-zinc-300 hover:bg-[#161b22]'}`}
+                    className="w-full text-left px-2.5 h-7 text-[11px] transition-colors truncate"
+                    style={{
+                      color: filterTheme === t.id ? 'var(--leading)' : 'var(--text)',
+                      background: filterTheme === t.id ? 'rgba(155,140,255,0.08)' : 'transparent',
+                    }}
                   >
                     {t.name}
                   </button>
@@ -192,84 +229,89 @@ export default function ThemeSidebar({
           </div>
         )}
 
-        {/* Sort buttons */}
-        <div className="flex gap-0.5">
-          {(['rs_slope', 'pct_1w', 'pct_1m', 'ytd_pct'] as const).map(col => (
+        {/* Segmented sort control */}
+        <div
+          className="flex rounded-[10px] p-[3px] border"
+          style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}
+        >
+          {sortOpts.map(opt => (
             <button
-              key={col}
-              onClick={() => handleSort(col)}
-              className={`flex-1 text-[8px] py-0.5 rounded transition-colors ${
-                sortCol === col ? 'bg-[#1c3a5f] text-[#58a6ff]' : 'text-zinc-600 hover:text-zinc-400'
-              }`}
+              key={opt.id}
+              onClick={() => handleSort(opt.id)}
+              className="flex-1 h-6 rounded-[7px] text-[10px] font-mono font-semibold transition-colors"
+              style={{
+                background: sortCol === opt.id ? 'var(--panel-hi)' : 'transparent',
+                color: sortCol === opt.id ? 'var(--text)' : 'var(--muted)',
+              }}
             >
-              {col === 'rs_slope' ? 'RS' : col === 'pct_1w' ? '1W' : col === 'pct_1m' ? '1M' : 'YTD'}
-              {sortCol === col && (sortDir === 1 ? ' ↑' : ' ↓')}
+              {opt.label}
+              {sortCol === opt.id && <span className="ml-0.5" style={{ color: 'var(--muted-2)' }}>{sortDir === 1 ? '↑' : '↓'}</span>}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ETF rows */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Rows */}
+      <div className="flex-1 overflow-y-auto px-2 py-1.5">
         {sorted.map((row, i) => {
           const isSelected = selectedTheme === row.themeId
+          const quad = quadrant(row.rs_strength, row.rs_momentum)
+          const quadColor = QUAD_COLOR[quad]
+          const val = sortCol === 'pct_1m' ? row.pct_1m
+            : sortCol === 'ytd_pct' ? row.ytd_pct
+            : sortCol === 'rs_slope' ? row.rs_slope
+            : row.pct_1w
+          const valStr = sortCol === 'rs_slope'
+            ? (val != null ? (val >= 0 ? `+${val.toFixed(2)}` : val.toFixed(2)) : '—')
+            : (val != null ? (val >= 0 ? `+${val.toFixed(1)}%` : `${val.toFixed(1)}%`) : '—')
           return (
             <button
               key={row.ticker}
               onClick={() => selectETF(row.ticker, row.themeId)}
-              className={`w-full grid items-center gap-1 px-3 py-2 border-b border-white/[0.03] text-left transition-all ${
-                isSelected ? 'bg-[#1c2129] border-l-2 border-l-[#58a6ff]' : 'hover:bg-[#161b22] border-l-2 border-l-transparent'
-              }`}
-              style={{ gridTemplateColumns: '16px 14px 52px 1fr 56px' }}
+              className="w-full grid items-center gap-2.5 px-2.5 py-2.5 mb-0.5 rounded-lg text-left transition-colors border-l-2"
+              style={{
+                background: isSelected ? 'rgba(155,140,255,0.08)' : 'transparent',
+                borderLeftColor: isSelected ? 'var(--leading)' : 'transparent',
+                gridTemplateColumns: '18px 1fr auto',
+              }}
+              onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--panel)' }}
+              onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
             >
-              {/* Rank */}
-              <span className="text-[9px] text-zinc-600 font-mono">
+              <span className="font-mono text-[10px] tabular-nums" style={{ color: 'var(--muted-2)' }}>
                 {i + 1}
               </span>
-
-              {/* Status dot */}
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: quadColor }}
+                />
+                <span className="text-[12px] font-semibold truncate" style={{ color: 'var(--text)' }}>
+                  {row.ticker}
+                </span>
+                <span className="text-[10px] truncate" style={{ color: 'var(--muted-2)' }}>
+                  {row.themeName}
+                </span>
+              </div>
               <span
-                className="w-1.5 h-1.5 rounded-full justify-self-center"
-                style={{ background: dotColor(row.rs_slope) }}
-              />
-
-              {/* Ticker */}
-              <span className="text-[11px] font-bold text-zinc-200 truncate">{row.ticker}</span>
-
-              {/* Theme */}
-              <span className="text-[8px] text-zinc-500 truncate pr-1" title={row.themeName}>
-                {row.themeName}
+                className="font-mono text-[11px] font-semibold tabular-nums"
+                style={{ color: (val ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}
+              >
+                {valStr}
               </span>
-
-              {/* Performance % — matches active sort column */}
-              {(() => {
-                const val = sortCol === 'pct_1m' ? row.pct_1m
-                  : sortCol === 'ytd_pct' ? row.ytd_pct
-                  : row.pct_1w
-                return (
-                  <span
-                    className="text-[10px] font-mono font-semibold tabular-nums text-right"
-                    style={{ color: (val ?? 0) >= 0 ? '#2ea043' : '#f85149' }}
-                  >
-                    {val != null ? `${val >= 0 ? '+' : ''}${val.toFixed(1)}%` : '—'}
-                  </span>
-                )
-              })()}
             </button>
           )
         })}
 
         {sorted.length === 0 && (
-          <div className="px-3 py-6 text-[10px] text-zinc-600 text-center">
+          <div className="px-3 py-6 text-[11px] text-center" style={{ color: 'var(--muted-2)' }}>
             No ETFs found
           </div>
         )}
       </div>
 
-      {/* Resize handle */}
       <div
         onMouseDown={onResizeStart}
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-[#58a6ff]/40 transition-colors z-10"
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors z-10 hover:bg-[rgba(155,140,255,0.4)]"
       />
     </div>
   )

@@ -2,27 +2,31 @@ import { useState, useRef, useCallback } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { fetchThemeMap, type ThemeMapResponse } from '../api'
 
-function BriefingCard({ title, content, accent = 'purple' }: {
-  title: string
-  content: string
-  accent?: 'purple' | 'green' | 'amber' | 'rose'
-}) {
-  const colors = {
-    purple: { dot: '#bc8cff', border: 'rgba(188,140,255,0.2)', bg: 'rgba(188,140,255,0.05)' },
-    green: { dot: '#2ea043', border: 'rgba(46,160,67,0.2)', bg: 'rgba(46,160,67,0.05)' },
-    amber: { dot: '#d29922', border: 'rgba(210,153,34,0.2)', bg: 'rgba(210,153,34,0.05)' },
-    rose: { dot: '#f85149', border: 'rgba(248,81,73,0.2)', bg: 'rgba(248,81,73,0.05)' },
-  }[accent]
+type CalloutType = 'STRONG' | 'IMPROVING' | 'WATCH' | 'RISK'
 
+const CALLOUT_STYLES: Record<CalloutType, { color: string; bg: string }> = {
+  STRONG:    { color: 'var(--up)',      bg: 'rgba(57,214,123,0.12)' },
+  IMPROVING: { color: 'var(--leading)', bg: 'rgba(155,140,255,0.12)' },
+  WATCH:     { color: 'var(--weakening)', bg: 'rgba(242,179,102,0.12)' },
+  RISK:      { color: 'var(--lagging)', bg: 'rgba(239,111,141,0.12)' },
+}
+
+function Callout({ type, content }: { type: CalloutType; content: string }) {
+  const style = CALLOUT_STYLES[type]
   return (
-    <div className="border rounded-md p-3 mb-2 last:mb-0" style={{ borderColor: colors.border, background: colors.bg }}>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: colors.dot }} />
-        <span className="text-[9px] uppercase tracking-widest font-semibold" style={{ color: colors.dot }}>
-          {title}
-        </span>
-      </div>
-      <div className="text-[11px] text-zinc-400 leading-relaxed whitespace-pre-wrap">{content}</div>
+    <div
+      className="flex gap-2.5 p-3 rounded-[10px] border mb-2 last:mb-0"
+      style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}
+    >
+      <span
+        className="font-mono text-[9px] font-semibold tracking-[0.15em] px-1.5 py-0.5 rounded-[4px] h-fit flex-shrink-0 whitespace-nowrap"
+        style={{ background: style.bg, color: style.color }}
+      >
+        {type}
+      </span>
+      <p className="text-[12px] leading-[1.5]" style={{ color: 'var(--text)' }}>
+        {content}
+      </p>
     </div>
   )
 }
@@ -36,9 +40,7 @@ function dateDaysAgo(dateStr: string): string {
     if (diff <= 0) return ''
     if (diff === 1) return '1d ago'
     return `${diff}d ago`
-  } catch {
-    return ''
-  }
+  } catch { return '' }
 }
 
 export default function AIPanel() {
@@ -47,7 +49,7 @@ export default function AIPanel() {
   const [loading, setLoading] = useState(false)
   const [dateStr, setDateStr] = useState('')
   const [source, setSource] = useState('')
-  const [panelWidth, setPanelWidth] = useState(320)
+  const [panelWidth, setPanelWidth] = useState(340)
   const resizing = useRef(false)
 
   const load = () => {
@@ -62,12 +64,8 @@ export default function AIPanel() {
       .finally(() => setLoading(false))
   }
 
-  // Auto-load on first expand
   const [loaded, setLoaded] = useState(false)
-  if (!loaded) {
-    setLoaded(true)
-    load()
-  }
+  if (!loaded) { setLoaded(true); load() }
 
   const onResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -76,7 +74,7 @@ export default function AIPanel() {
     const startW = panelWidth
     const onMove = (ev: MouseEvent) => {
       if (!resizing.current) return
-      const newW = Math.max(240, Math.min(600, startW - (ev.clientX - startX)))
+      const newW = Math.max(260, Math.min(600, startW - (ev.clientX - startX)))
       setPanelWidth(newW)
     }
     const onUp = () => {
@@ -92,8 +90,15 @@ export default function AIPanel() {
 
   if (collapsed) {
     return (
-      <div className="flex-shrink-0 border-l border-white/5 w-10 bg-[#0d1117] flex flex-col items-center py-3">
-        <button onClick={() => setCollapsed(false)} className="text-zinc-600 hover:text-zinc-300 text-xs px-1 py-4">
+      <div
+        className="flex-shrink-0 w-10 flex flex-col items-center py-3 border-l max-md:hidden"
+        style={{ borderColor: 'var(--line)', background: 'transparent' }}
+      >
+        <button
+          onClick={() => setCollapsed(false)}
+          className="text-xs px-1 py-4"
+          style={{ color: 'var(--muted-2)' }}
+        >
           <span style={{ writingMode: 'vertical-rl' }}>◀ AI Briefing</span>
         </button>
       </div>
@@ -102,74 +107,95 @@ export default function AIPanel() {
 
   return (
     <div
-      className="flex-shrink-0 border-l border-white/5 flex flex-col overflow-hidden bg-[#0d1117] relative"
-      style={{ width: panelWidth }}
+      className="flex-shrink-0 flex flex-col overflow-hidden border-l relative max-md:hidden"
+      style={{ width: panelWidth, borderColor: 'var(--line)', background: 'transparent' }}
     >
-      {/* Resize handle (left edge) */}
+      {/* Resize handle */}
       <div
         onMouseDown={onResizeStart}
-        className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-[#58a6ff]/40 transition-colors z-10"
+        className="absolute top-0 left-0 w-1 h-full cursor-col-resize transition-colors z-10 hover:bg-[rgba(155,140,255,0.4)]"
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 flex-shrink-0">
-        <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-          <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold">
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
+        style={{ borderColor: 'var(--line)' }}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--leading)' }} />
+          <span
+            className="font-mono text-[10px] uppercase tracking-[0.18em] font-semibold"
+            style={{ color: 'var(--leading)' }}
+          >
             AI Briefing
           </span>
           {dateStr && (
-            <span className="text-[9px] text-zinc-700">
+            <span className="font-mono text-[9px]" style={{ color: 'var(--muted-2)' }}>
               {dateStr}
-              {age && <span className="text-zinc-600 ml-1">({age})</span>}
+              {age && <span className="ml-1">({age})</span>}
             </span>
           )}
           {source === 'fallback' && (
-            <span className="text-[8px] bg-amber-900/30 text-amber-500 px-1 py-0.5 rounded">offline</span>
+            <span
+              className="font-mono text-[8px] px-1.5 py-0.5 rounded"
+              style={{ background: 'rgba(242,179,102,0.15)', color: 'var(--weakening)' }}
+            >
+              offline
+            </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={load}
             disabled={loading}
-            className="text-zinc-700 hover:text-zinc-400 transition-colors disabled:opacity-30"
+            className="transition-colors disabled:opacity-30"
+            style={{ color: 'var(--muted-2)' }}
           >
-            <RefreshCw size={10} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => setCollapsed(true)} className="text-zinc-700 hover:text-zinc-400 transition-colors text-[10px]">
+          <button
+            onClick={() => setCollapsed(true)}
+            className="text-[10px] transition-colors"
+            style={{ color: 'var(--muted-2)' }}
+          >
             ▶
           </button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-4">
         {data?.briefing ? (
           <>
-            <BriefingCard
-              title="Market Regime"
-              content={data.briefing.regime}
-              accent="purple"
-            />
-            <BriefingCard
-              title="Hottest Themes"
-              content={data.briefing.hottest}
-              accent="green"
-            />
-            <BriefingCard
-              title="Coverage Gaps"
-              content={data.briefing.gaps}
-              accent="amber"
-            />
-            <BriefingCard
-              title="Avoid"
-              content={data.briefing.avoid}
-              accent="rose"
-            />
+            {/* Lede card */}
+            <div
+              className="p-3.5 rounded-xl border text-[13px] leading-[1.5] mb-3.5"
+              style={{
+                borderColor: 'var(--line)',
+                background: 'linear-gradient(to bottom, rgba(155,140,255,0.05), transparent)',
+                color: 'var(--text)',
+              }}
+            >
+              <div
+                className="font-mono text-[9px] tracking-[0.18em] uppercase mb-2 font-semibold"
+                style={{ color: 'var(--leading)' }}
+              >
+                Market Regime
+              </div>
+              {data.briefing.regime}
+            </div>
+
+            {/* Callouts */}
+            <Callout type="STRONG" content={data.briefing.hottest} />
+            <Callout type="WATCH" content={data.briefing.gaps} />
+            <Callout type="RISK" content={data.briefing.avoid} />
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-zinc-600 text-xs">
-            {loading ? 'Loading...' : 'No briefing available.'}
+          <div
+            className="flex items-center justify-center h-full text-xs"
+            style={{ color: 'var(--muted-2)' }}
+          >
+            {loading ? 'Loading…' : 'No briefing available.'}
           </div>
         )}
       </div>
