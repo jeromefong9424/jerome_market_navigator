@@ -1,8 +1,8 @@
-import { useState, useRef, useMemo, useCallback } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import themeGroups from '../config/themeGroups.json'
 import { useStore } from '../store'
-import { quadrant, QUAD_COLOR } from '../lib/quadrant'
+import { quadrant, QUAD_COLOR, QUAD_LABEL } from '../lib/quadrant'
 
 interface RSRow {
   ticker: string
@@ -30,13 +30,37 @@ export default function ThemeSidebar({
   const setSelectedTicker = useStore(s => s.setSelectedTicker)
   const [collapsed, setCollapsed] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'themes' | 'sectors'>('themes')
-  const [sidebarWidth, setSidebarWidth] = useState(280)
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = parseInt(localStorage.getItem('jmn_sidebar_w') ?? '', 10)
+    return Number.isFinite(saved) ? Math.max(240, Math.min(600, saved)) : 280
+  })
   const resizing = useRef(false)
   const [filterTheme, setFilterTheme] = useState<string>('all')
   const [sortCol, setSortCol] = useState<'rs_slope' | 'pct_1w' | 'pct_1m' | 'ytd_pct'>('pct_1w')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close theme dropdown on outside click or Escape
+  useEffect(() => {
+    if (!dropdownOpen) return
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDropdownOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('touchstart', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('touchstart', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [dropdownOpen])
 
   const allETFs = useMemo(() => {
     const rsMap = new Map(rsData.map(r => [r.ticker, r]))
@@ -90,13 +114,15 @@ export default function ThemeSidebar({
     resizing.current = true
     const startX = e.clientX
     const startW = sidebarWidth
+    let latestW = startW
     const onMove = (ev: MouseEvent) => {
       if (!resizing.current) return
-      const newW = Math.max(240, Math.min(600, startW + (ev.clientX - startX)))
-      setSidebarWidth(newW)
+      latestW = Math.max(240, Math.min(600, startW + (ev.clientX - startX)))
+      setSidebarWidth(latestW)
     }
     const onUp = () => {
       resizing.current = false
+      localStorage.setItem('jmn_sidebar_w', String(latestW))
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }
@@ -117,10 +143,12 @@ export default function ThemeSidebar({
       >
         <button
           onClick={() => setCollapsed(false)}
-          className="text-xs px-1 py-4 transition-colors"
+          aria-label="Expand sidebar"
+          className="text-xs px-1 py-4 transition-colors flex flex-col items-center gap-1"
           style={{ color: 'var(--muted-2)' }}
         >
-          <span style={{ writingMode: 'vertical-rl' }}>▶ All ETFs</span>
+          <ChevronRight size={13} />
+          <span style={{ writingMode: 'vertical-rl' }}>All ETFs</span>
         </button>
       </div>
     )
@@ -170,10 +198,11 @@ export default function ThemeSidebar({
         </div>
         <button
           onClick={() => setCollapsed(true)}
-          className="text-[10px] transition-colors"
+          aria-label="Collapse sidebar"
+          className="transition-colors p-1"
           style={{ color: 'var(--muted-2)' }}
         >
-          ◀
+          <ChevronLeft size={13} />
         </button>
       </div>
 
@@ -186,6 +215,8 @@ export default function ThemeSidebar({
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(o => !o)}
+              aria-expanded={dropdownOpen}
+              aria-haspopup="listbox"
               className="w-full flex items-center justify-between px-2.5 h-7 rounded-[8px] border text-[11px] transition-colors"
               style={{
                 background: 'var(--panel)',
@@ -268,6 +299,7 @@ export default function ThemeSidebar({
             <button
               key={row.ticker}
               onClick={() => selectETF(row.ticker, row.themeId)}
+              title={`${row.ticker} — ${QUAD_LABEL[quad]}`}
               className="w-full grid items-center gap-2.5 px-2.5 py-2.5 mb-0.5 rounded-lg text-left transition-colors border-l-2"
               style={{
                 background: isSelected ? 'rgba(155,140,255,0.08)' : 'transparent',
@@ -318,7 +350,10 @@ export default function ThemeSidebar({
 
       <div
         onMouseDown={onResizeStart}
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors z-10 hover:bg-[rgba(155,140,255,0.4)]"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        className="absolute top-0 right-0 w-2 h-full cursor-col-resize transition-colors z-10 hover:bg-[rgba(155,140,255,0.4)]"
       />
     </div>
   )

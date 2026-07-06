@@ -10,7 +10,7 @@
   --color-line:      rgba(255, 255, 255, 0.06);
   --color-line-2:    rgba(255, 255, 255, 0.10);
   --color-muted:     #8892a8;
-  --color-muted-2:   #525c75;
+  --color-muted-2:   #707c98;
   --color-leading:   #9b8cff;
   --color-improving: #6cb0ff;
   --color-weakening: #f2b366;
@@ -35,7 +35,7 @@
   --line-2: rgba(255, 255, 255, 0.10);
   --text: #e6ecf5;
   --muted: #8892a8;
-  --muted-2: #525c75;
+  --muted-2: #707c98; /* ≥4.5:1 on --bg (WCAG AA small text) */
   --leading:   #9b8cff;
   --improving: #6cb0ff;
   --weakening: #f2b366;
@@ -73,8 +73,14 @@
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Theme-consistent keyboard focus ring */
+:focus-visible {
+  outline: 2px solid var(--leading);
+  outline-offset: -2px;
 }
 
 /* Ambient backdrop glow — opt-in via .app-bg class on root container */
@@ -91,12 +97,12 @@ body {
 /* ─── Dark scrollbar ─────────────────────────────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #1E1E1E transparent;
+  scrollbar-color: #232b40 transparent;
 }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1E1E1E; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #2A2A2A; }
+::-webkit-scrollbar-thumb { background: #232b40; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2e3852; }
 
 /* ─── Smooth global defaults ─────────────────────────────────────────────────── */
 html { scroll-behavior: smooth; }
@@ -121,7 +127,7 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   100% { background-position: -200% 0; }
 }
 .shimmer-line {
-  background: linear-gradient(90deg, #1A1A1A 25%, #2A2A2A 50%, #1A1A1A 75%);
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%);
   background-size: 200% 100%;
   animation: shimmer-bg 1.5s infinite;
 }
@@ -137,7 +143,18 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   animation: shimmer-sweep 2s infinite;
 }
 
-/* Touch-friendly tap targets */
+/* Touch-friendly tap targets — Apple HIG / Material minimum */
 @media (pointer: coarse) {
-  button, [role="button"] { min-height: 36px; }
+  button, [role="button"] { min-height: 44px; }
+}
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .shimmer-line, .shimmer-sweep, .proximity-glow { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

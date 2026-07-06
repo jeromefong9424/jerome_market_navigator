@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries } from 'lightweight-charts'
 import * as HoverCard from '@radix-ui/react-hover-card'
+import { ChevronDown } from 'lucide-react'
 import { fetchRS, fetchHoldings } from '../api'
-import { quadrant, QUAD_COLOR, QUAD_LABEL, QUAD_BG } from '../lib/quadrant'
+import { quadrant, QUAD_COLOR, QUAD_LABEL, QUAD_BG, type Quadrant } from '../lib/quadrant'
 import { Sparkline } from './ui/Sparkline'
 
 interface RSData {
@@ -27,12 +28,14 @@ interface ThemeETFTableProps {
 
 interface HoldingRow {
   ticker: string
-  rs_slope: number
   pct_1w: number | null
   pct_1m: number | null
-  from_high_pct: number
-  price: number
+  from_high_pct: number | null
+  price: number | null
 }
+
+// Session cache — avoids re-fetching the same ticker on every hover
+const rsCache = new Map<string, RSData>()
 
 // ─── Mini candle chart for ETF hover ───────────────────────────────────────────
 function ETFMiniChart({ ticker }: { ticker: string }) {
@@ -78,19 +81,25 @@ function ETFMiniChart({ ticker }: { ticker: string }) {
 
   useEffect(() => {
     if (!seriesRef.current) return
+    const apply = (row: RSData) => {
+      if (!row?.candles?.length || !seriesRef.current) return
+      const { candle, vol } = seriesRef.current
+      candle.setData(row.candles)
+      vol.setData(row.candles.map((c: { time: string; open: number; high: number; low: number; close: number; volume?: number }) => ({
+        time: c.time,
+        value: c.volume ?? 0,
+        color: c.close >= c.open ? 'rgba(57,214,123,0.4)' : 'rgba(255,94,122,0.4)',
+      })))
+      chartRef.current?.timeScale().fitContent()
+    }
+    const cached = rsCache.get(ticker)
+    if (cached) { apply(cached); return }
     fetchRS([ticker])
       .then((data: unknown) => {
-        const rows = data as RSData[]
-        const row = rows[0]
-        if (!row?.candles?.length) return
-        const { candle, vol } = seriesRef.current!
-        candle.setData(row.candles)
-        vol.setData(row.candles.map((c: { time: string; open: number; high: number; low: number; close: number; volume?: number }) => ({
-          time: c.time,
-          value: c.volume ?? 0,
-          color: c.close >= c.open ? 'rgba(57,214,123,0.4)' : 'rgba(255,94,122,0.4)',
-        })))
-        chartRef.current?.timeScale().fitContent()
+        const row = (data as RSData[])[0]
+        if (!row) return
+        rsCache.set(ticker, row)
+        apply(row)
       })
       .catch(() => {})
   }, [ticker])
@@ -98,55 +107,27 @@ function ETFMiniChart({ ticker }: { ticker: string }) {
   return <div ref={ref} className="w-full" />
 }
 
-// ─── Holding row ───────────────────────────────────────────────────────────────
-function HoldingTickerRow({ ticker, rank }: { ticker: string; rank: number }) {
-  const [data, setData] = useState<HoldingRow | null>(null)
-
-  useEffect(() => {
-    fetchRS([ticker])
-      .then((rows: unknown) => {
-        const r = (rows as RSData[])[0]
-        if (!r) return
-        setData({
-          ticker: r.ticker,
-          rs_slope: r.rs_slope,
-          pct_1w: r.pct_1w ?? null,
-          pct_1m: r.pct_1m ?? null,
-          from_high_pct: r.from_high_pct ?? 0,
-          price: r.price ?? 0,
-        })
-      })
-      .catch(() => {})
-  }, [ticker])
-
+// ─── Holding row (presentational — data fetched in one batch by the parent) ────
+function HoldingTickerRow({ row, rank }: { row: HoldingRow; rank: number }) {
   return (
     <div
       className="grid items-center gap-2 px-4 py-1.5 text-[10px] font-mono tabular-nums border-b"
       style={{ borderColor: 'var(--line)', gridTemplateColumns: '20px 1fr 70px 70px 70px 70px' }}
     >
       <span style={{ color: 'var(--muted-2)' }}>{rank}</span>
-      <span className="text-[11px] font-semibold" style={{ color: 'var(--text)' }}>{ticker}</span>
-      {data ? (
-        <>
-          <span style={{ color: (data.pct_1w ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>
-            {data.pct_1w != null ? `${data.pct_1w >= 0 ? '+' : ''}${data.pct_1w.toFixed(1)}%` : '—'}
-          </span>
-          <span style={{ color: (data.pct_1m ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>
-            {data.pct_1m != null ? `${data.pct_1m >= 0 ? '+' : ''}${data.pct_1m.toFixed(1)}%` : '—'}
-          </span>
-          <span style={{ color: data.from_high_pct >= -5 ? 'var(--up)' : 'var(--down)' }}>
-            {data.from_high_pct.toFixed(1)}%
-          </span>
-          <span style={{ color: 'var(--muted)' }}>${data.price.toFixed(2)}</span>
-        </>
-      ) : (
-        <>
-          <span style={{ color: 'var(--muted-2)' }}>—</span>
-          <span style={{ color: 'var(--muted-2)' }}>—</span>
-          <span style={{ color: 'var(--muted-2)' }}>—</span>
-          <span style={{ color: 'var(--muted-2)' }}>—</span>
-        </>
-      )}
+      <span className="text-[11px] font-semibold" style={{ color: 'var(--text)' }}>{row.ticker}</span>
+      <span style={{ color: (row.pct_1w ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>
+        {row.pct_1w != null ? `${row.pct_1w >= 0 ? '+' : ''}${row.pct_1w.toFixed(1)}%` : '—'}
+      </span>
+      <span style={{ color: (row.pct_1m ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>
+        {row.pct_1m != null ? `${row.pct_1m >= 0 ? '+' : ''}${row.pct_1m.toFixed(1)}%` : '—'}
+      </span>
+      <span style={{ color: (row.from_high_pct ?? 0) >= -5 ? 'var(--up)' : 'var(--down)' }}>
+        {row.from_high_pct != null ? `${row.from_high_pct.toFixed(1)}%` : '—'}
+      </span>
+      <span style={{ color: 'var(--muted)' }}>
+        {row.price != null ? `$${row.price.toFixed(2)}` : '—'}
+      </span>
     </div>
   )
 }
@@ -156,17 +137,29 @@ type SortCol = 'rs_slope' | 'pct_1w' | 'pct_1m' | 'ytd_pct' | 'from_high_pct' | 
 
 const GRID_COLS = '32px 68px 1fr 100px 70px 70px 70px 70px 76px 24px'
 
+const QUAD_SHORT: Record<Quadrant, string> = {
+  leading: 'LEAD', improving: 'IMPR', weakening: 'WEAK', lagging: 'LAG',
+}
+
 export default function ThemeETFTable({ themeName, etfTickers, rsData }: ThemeETFTableProps) {
   const [expandedETF, setExpandedETF] = useState<string | null>(null)
-  const [sortCol, setSortCol] = useState<SortCol>('pct_1w')
+  const [sortCol, setSortCol] = useState<SortCol>('rs_slope')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
-  const [holdings, setHoldings] = useState<Record<string, string[]>>({})
+  const [holdingRows, setHoldingRows] = useState<Record<string, HoldingRow[] | undefined>>({})
+  const [quadFilter, setQuadFilter] = useState<Quadrant | 'all'>('all')
 
   const displayData = etfTickers
     .map(t => rsData.find(r => r.ticker === t))
     .filter((r): r is RSData => r !== undefined)
 
-  const sorted = [...displayData].sort((a, b) => {
+  const quadCounts = { leading: 0, improving: 0, weakening: 0, lagging: 0 } as Record<Quadrant, number>
+  for (const r of displayData) quadCounts[quadrant(r.rs_strength, r.rs_momentum)]++
+
+  const filtered = quadFilter === 'all'
+    ? displayData
+    : displayData.filter(r => quadrant(r.rs_strength, r.rs_momentum) === quadFilter)
+
+  const sorted = [...filtered].sort((a, b) => {
     let av: number, bv: number
     switch (sortCol) {
       case 'pct_1w': av = a.pct_1w ?? -999; bv = b.pct_1w ?? -999; break
@@ -187,14 +180,34 @@ export default function ThemeETFTable({ themeName, etfTickers, rsData }: ThemeET
   const toggleETF = (ticker: string) => {
     if (expandedETF === ticker) {
       setExpandedETF(null)
-    } else {
-      setExpandedETF(ticker)
-      if (!holdings[ticker]) {
-        fetchHoldings([ticker]).then((h: unknown) => {
-          setHoldings(prev => ({ ...prev, [ticker]: (h as Record<string, string[]>)[ticker] ?? [] }))
-        }).catch(() => {})
-      }
+      return
     }
+    setExpandedETF(ticker)
+    if (holdingRows[ticker]) return
+    // One holdings call + one batched RS call — not one request per holding
+    fetchHoldings([ticker])
+      .then(h => {
+        const list = (h[ticker] ?? []).slice(0, 10)
+        if (!list.length) {
+          setHoldingRows(prev => ({ ...prev, [ticker]: [] }))
+          return
+        }
+        return fetchRS(list).then((rows: unknown) => {
+          const byTicker = new Map((rows as RSData[]).map(r => [r.ticker, r]))
+          const mapped: HoldingRow[] = list.map(t => {
+            const r = byTicker.get(t)
+            return {
+              ticker: t,
+              pct_1w: r?.pct_1w ?? null,
+              pct_1m: r?.pct_1m ?? null,
+              from_high_pct: r?.from_high_pct ?? null,
+              price: r?.price ?? null,
+            }
+          })
+          setHoldingRows(prev => ({ ...prev, [ticker]: mapped }))
+        })
+      })
+      .catch(() => setHoldingRows(prev => ({ ...prev, [ticker]: [] })))
   }
 
   const sortArrow = (col: SortCol) => sortCol === col ? (sortDir === 1 ? '↑' : '↓') : ''
@@ -220,7 +233,42 @@ export default function ThemeETFTable({ themeName, etfTickers, rsData }: ThemeET
               {sorted.length} ETFs
             </span>
           </div>
+
+          {/* Quadrant filter pills */}
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            <button
+              onClick={() => setQuadFilter('all')}
+              className="h-6 px-2 rounded-full font-mono text-[9px] font-semibold tracking-[0.08em] border transition-colors"
+              style={{
+                background: quadFilter === 'all' ? 'var(--panel-hi)' : 'transparent',
+                borderColor: quadFilter === 'all' ? 'var(--line-2)' : 'var(--line)',
+                color: quadFilter === 'all' ? 'var(--text)' : 'var(--muted)',
+              }}
+            >
+              ALL
+            </button>
+            {(['leading', 'improving', 'weakening', 'lagging'] as Quadrant[]).map(q => (
+              <button
+                key={q}
+                onClick={() => setQuadFilter(f => f === q ? 'all' : q)}
+                title={QUAD_LABEL[q]}
+                className="h-6 px-2 rounded-full font-mono text-[9px] font-semibold tracking-[0.08em] border transition-colors flex items-center gap-1"
+                style={{
+                  background: quadFilter === q ? QUAD_BG[q] : 'transparent',
+                  borderColor: quadFilter === q ? QUAD_COLOR[q] : 'var(--line)',
+                  color: quadFilter === q ? QUAD_COLOR[q] : 'var(--muted)',
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: QUAD_COLOR[q] }} />
+                {QUAD_SHORT[q]} · {quadCounts[q]}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Scroll container — grid is ~840px wide; scroll here instead of clipping */}
+        <div className="overflow-x-auto">
+        <div className="min-w-[840px]">
 
         {/* Leaderboard header */}
         <div
@@ -230,12 +278,22 @@ export default function ThemeETFTable({ themeName, etfTickers, rsData }: ThemeET
           <span style={thStyle}>#</span>
           <span style={thStyle}>TICKER</span>
           <span style={thStyle}>THEME · STATUS</span>
-          <span style={thStyle}>RS 25D</span>
-          <button className="text-left hover:opacity-80 transition-opacity" onClick={() => handleSort('pct_1w')} style={thStyle}>1W {sortArrow('pct_1w')}</button>
-          <button className="text-left hover:opacity-80 transition-opacity" onClick={() => handleSort('pct_1m')} style={thStyle}>1M {sortArrow('pct_1m')}</button>
-          <button className="text-left hover:opacity-80 transition-opacity" onClick={() => handleSort('ytd_pct')} style={thStyle}>YTD {sortArrow('ytd_pct')}</button>
-          <button className="text-left hover:opacity-80 transition-opacity" onClick={() => handleSort('from_high_pct')} style={thStyle}>52W HI {sortArrow('from_high_pct')}</button>
-          <button className="text-right hover:opacity-80 transition-opacity" onClick={() => handleSort('price')} style={thStyle}>PRICE {sortArrow('price')}</button>
+          <button
+            className="text-left hover:opacity-80 transition-opacity uppercase"
+            onClick={() => handleSort('rs_slope')}
+            title="Relative strength vs SPY — 25-day slope"
+            style={thStyle}
+          >RS 25D {sortArrow('rs_slope')}</button>
+          <button className="text-left hover:opacity-80 transition-opacity uppercase" onClick={() => handleSort('pct_1w')} style={thStyle}>1W {sortArrow('pct_1w')}</button>
+          <button className="text-left hover:opacity-80 transition-opacity uppercase" onClick={() => handleSort('pct_1m')} style={thStyle}>1M {sortArrow('pct_1m')}</button>
+          <button className="text-left hover:opacity-80 transition-opacity uppercase" onClick={() => handleSort('ytd_pct')} style={thStyle}>YTD {sortArrow('ytd_pct')}</button>
+          <button
+            className="text-left hover:opacity-80 transition-opacity uppercase"
+            onClick={() => handleSort('from_high_pct')}
+            title="Distance from 52-week high — green when within 5%"
+            style={thStyle}
+          >52W HI {sortArrow('from_high_pct')}</button>
+          <button className="text-right hover:opacity-80 transition-opacity uppercase" onClick={() => handleSort('price')} style={thStyle}>PRICE {sortArrow('price')}</button>
           <span></span>
         </div>
 
@@ -249,6 +307,10 @@ export default function ThemeETFTable({ themeName, etfTickers, rsData }: ThemeET
               <HoverCard.Root>
                 <HoverCard.Trigger asChild>
                   <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={expanded}
+                    aria-label={`${row.ticker} — ${QUAD_LABEL[quad]} — ${expanded ? 'collapse' : 'expand'} holdings`}
                     className="grid items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-b relative"
                     style={{
                       gridTemplateColumns: GRID_COLS,
@@ -256,6 +318,12 @@ export default function ThemeETFTable({ themeName, etfTickers, rsData }: ThemeET
                       background: expanded ? 'var(--panel-hi)' : 'transparent',
                     }}
                     onClick={() => toggleETF(row.ticker)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        toggleETF(row.ticker)
+                      }
+                    }}
                     onMouseEnter={e => { if (!expanded) e.currentTarget.style.background = 'var(--panel)' }}
                     onMouseLeave={e => { if (!expanded) e.currentTarget.style.background = 'transparent' }}
                   >
@@ -299,14 +367,21 @@ export default function ThemeETFTable({ themeName, etfTickers, rsData }: ThemeET
                     <span className="font-mono text-[11px] tabular-nums" style={{ color: (row.ytd_pct ?? 0) >= 0 ? 'var(--up)' : 'var(--down)' }}>
                       {row.ytd_pct != null ? `${row.ytd_pct >= 0 ? '+' : ''}${row.ytd_pct.toFixed(1)}%` : '—'}
                     </span>
-                    <span className="font-mono text-[11px] tabular-nums" style={{ color: (row.from_high_pct ?? 0) >= -5 ? 'var(--up)' : 'var(--down)' }}>
+                    <span
+                      className="font-mono text-[11px] tabular-nums"
+                      title="Distance from 52-week high — green when within 5%"
+                      style={{ color: (row.from_high_pct ?? 0) >= -5 ? 'var(--up)' : 'var(--down)' }}
+                    >
                       {row.from_high_pct != null ? `${row.from_high_pct.toFixed(1)}%` : '—'}
                     </span>
                     <span className="font-mono text-[11px] tabular-nums text-right" style={{ color: 'var(--text)' }}>
                       ${(row.price ?? 0).toFixed(2)}
                     </span>
-                    <span className="text-[10px] text-right" style={{ color: 'var(--muted-2)' }}>
-                      {expanded ? '▲' : '▼'}
+                    <span className="flex justify-end" style={{ color: 'var(--muted-2)' }}>
+                      <ChevronDown
+                        size={13}
+                        className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
+                      />
                     </span>
                   </div>
                 </HoverCard.Trigger>
@@ -349,13 +424,17 @@ export default function ThemeETFTable({ themeName, etfTickers, rsData }: ThemeET
                     <span>52W</span>
                     <span>PRICE</span>
                   </div>
-                  {(holdings[row.ticker] ?? []).slice(0, 10).map((t, idx) => (
-                    <HoldingTickerRow key={t} ticker={t} rank={idx + 1} />
+                  {(holdingRows[row.ticker] ?? []).map((h, idx) => (
+                    <HoldingTickerRow key={h.ticker} row={h} rank={idx + 1} />
                   ))}
-                  {holdings[row.ticker] === undefined && (
-                    <div className="px-4 py-3 text-[10px]" style={{ color: 'var(--muted-2)' }}>Loading holdings…</div>
+                  {holdingRows[row.ticker] === undefined && (
+                    <div className="px-4 py-2 flex flex-col gap-1.5">
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <div key={i} className="shimmer-line h-6 rounded-md" />
+                      ))}
+                    </div>
                   )}
-                  {holdings[row.ticker]?.length === 0 && (
+                  {holdingRows[row.ticker]?.length === 0 && (
                     <div className="px-4 py-3 text-[10px]" style={{ color: 'var(--muted-2)' }}>No holdings data available.</div>
                   )}
                 </div>
@@ -364,7 +443,32 @@ export default function ThemeETFTable({ themeName, etfTickers, rsData }: ThemeET
           )
         })}
 
-        {sorted.length === 0 && (
+        </div>
+        </div>
+
+        {/* Loading skeleton — rsData not yet fetched */}
+        {rsData.length === 0 && (
+          <div className="px-4 py-3 flex flex-col gap-2">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+              <div key={i} className="shimmer-line h-[42px] rounded-lg" />
+            ))}
+          </div>
+        )}
+
+        {/* True empty states */}
+        {rsData.length > 0 && sorted.length === 0 && quadFilter !== 'all' && (
+          <div className="flex flex-col items-center justify-center py-12 text-xs gap-3">
+            <div style={{ color: 'var(--muted)' }}>No ETFs in the {QUAD_LABEL[quadFilter]} quadrant.</div>
+            <button
+              onClick={() => setQuadFilter('all')}
+              className="font-mono text-[10px] px-3 py-1.5 rounded-full border transition-colors hover:opacity-80"
+              style={{ borderColor: 'var(--line-2)', color: 'var(--text)' }}
+            >
+              Show all
+            </button>
+          </div>
+        )}
+        {rsData.length > 0 && sorted.length === 0 && quadFilter === 'all' && (
           <div className="flex flex-col items-center justify-center py-12 text-xs gap-3">
             <div style={{ color: 'var(--muted)' }}>No ETF data available for this theme.</div>
             <div style={{ color: 'var(--muted-2)' }}>Theme: {themeName}</div>

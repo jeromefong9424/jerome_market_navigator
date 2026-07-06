@@ -64,13 +64,11 @@ export default function MobileLeaderboard({ rsData, onOpenBriefing }: MobileLead
     return bv - av // descending
   })
 
-  const sortLabel = sortCol === 'pct_1w' ? '1W' : sortCol === 'pct_1m' ? '1M' : 'YTD'
-
   return (
     <div className="md:hidden flex flex-col w-full">
       {/* Today's briefing teaser card */}
-      <div
-        className="mx-4 mt-3 mb-4 p-3.5 rounded-[14px] cursor-pointer border"
+      <button
+        className="mx-4 mt-3 mb-4 p-3.5 rounded-[14px] cursor-pointer border text-left block"
         style={{
           background: 'linear-gradient(135deg, rgba(155,140,255,0.12), rgba(108,176,255,0.05))',
           borderColor: 'rgba(155,140,255,0.2)',
@@ -92,20 +90,37 @@ export default function MobileLeaderboard({ rsData, onOpenBriefing }: MobileLead
         <div className="mt-2 font-mono text-[11px]" style={{ color: 'var(--leading)' }}>
           Read full briefing →
         </div>
-      </div>
+      </button>
 
-      {/* Page title + sort cycle */}
-      <div className="flex items-baseline justify-between px-4 mb-2">
+      {/* Page title + sort segmented control */}
+      <div className="flex items-center justify-between px-4 mb-2">
         <h2 className="text-[22px] font-bold tracking-tight" style={{ color: 'var(--text)' }}>
           Leaderboard
+          <span className="ml-2 font-mono text-[11px] font-normal align-middle" style={{ color: 'var(--muted-2)' }}>
+            {sorted.length}
+          </span>
         </h2>
-        <button
-          onClick={() => setSortCol(c => c === 'pct_1w' ? 'pct_1m' : c === 'pct_1m' ? 'ytd_pct' : 'pct_1w')}
-          className="font-mono text-[11px]"
-          style={{ color: 'var(--muted)' }}
+        <div
+          className="flex items-center rounded-[10px] p-[3px] border"
+          style={{ background: 'var(--panel)', borderColor: 'var(--line)' }}
+          role="group"
+          aria-label="Sort by"
         >
-          {sorted.length} · {sortLabel} ↓
-        </button>
+          {([['pct_1w', '1W'], ['pct_1m', '1M'], ['ytd_pct', 'YTD']] as const).map(([col, label]) => (
+            <button
+              key={col}
+              onClick={() => setSortCol(col)}
+              aria-pressed={sortCol === col}
+              className="px-3 h-8 rounded-[7px] font-mono text-[11px] font-semibold transition-colors"
+              style={{
+                background: sortCol === col ? 'var(--panel-hi)' : 'transparent',
+                color: sortCol === col ? 'var(--text)' : 'var(--muted)',
+              }}
+            >
+              {label}{sortCol === col ? ' ↓' : ''}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Quadrant filter pills */}
